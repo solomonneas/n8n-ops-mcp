@@ -7,3 +7,7 @@ dist/
 .DS_Store
 dist/
 .claude/
+.codex/
+
+# Local learnings (never commit)
+.learnings/
