@@ -1,6 +1,6 @@
 {
   "name": "openclaw-n8n",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "n8n ops plugin for OpenClaw. List, inspect, trigger, and safely edit n8n workflows from OpenClaw agents.",
   "private": true,
   "type": "module",

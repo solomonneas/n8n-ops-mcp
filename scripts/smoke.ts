@@ -88,3 +88,17 @@ for (const w of activeList.data) {
   }
 }
 console.log(`  total webhooks found: ${webhookHits}`);
+
+console.log("\nValidating first active workflow:");
+const firstActive = activeList.data[0];
+if (firstActive) {
+  const { validateWorkflow } = await import("../src/tools/validate-workflow.ts");
+  const wf = await client.getWorkflow(firstActive.id);
+  const issues = validateWorkflow(wf);
+  const err = issues.filter((i) => i.severity === "error").length;
+  const warn = issues.filter((i) => i.severity === "warning").length;
+  console.log(`  ${wf.name}: ${issues.length} issues (${err} error, ${warn} warning)`);
+  for (const i of issues.slice(0, 5)) {
+    console.log(`    [${i.severity}] ${i.code} ${i.nodeName ? `@${i.nodeName}` : ""}: ${i.message}`);
+  }
+}

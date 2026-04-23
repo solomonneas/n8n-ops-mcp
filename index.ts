@@ -7,6 +7,7 @@ import { createListExecutionsTool } from "./src/tools/list-executions.ts";
 import { createGetExecutionTool } from "./src/tools/get-execution.ts";
 import { createTriggerTool } from "./src/tools/trigger.ts";
 import { createListWebhooksTool } from "./src/tools/list-webhooks.ts";
+import { createValidateWorkflowTool } from "./src/tools/validate-workflow.ts";
 
 export default definePluginEntry({
   id: "n8n",
@@ -32,6 +33,7 @@ export default definePluginEntry({
     api.registerTool(
       createListWebhooksTool({ getClient, baseUrl: config.baseUrl }) as AnyAgentTool,
     );
+    api.registerTool(createValidateWorkflowTool(getClient) as AnyAgentTool);
   },
 });
 
