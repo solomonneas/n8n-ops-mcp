@@ -2,7 +2,7 @@
 
 n8n ops plugin for [OpenClaw](https://github.com/openclaw/openclaw). List, inspect, trigger, and safely edit n8n workflows from OpenClaw agents.
 
-Status: v0.0.5 — read + trigger + validate (`n8n_list_workflows`, `n8n_get_workflow`, `n8n_list_executions`, `n8n_get_execution`, `n8n_trigger`, `n8n_list_webhooks`, `n8n_validate_workflow`). Edit tools behind `enableEdit` next.
+Status: v0.0.6 — read + trigger + validate + activate/deactivate (behind `enableEdit`). Full save with auto-backup next.
 
 ## Why
 
@@ -21,6 +21,12 @@ OpenClaw agents have no native awareness of your n8n footprint. If a pipeline br
 **`n8n_list_webhooks`** - scan workflows for webhook and form-trigger nodes and return their paths + fully-formed `triggerUrl`. Pairs with `n8n_trigger` mode='webhook' so agents can discover and call webhooks without opening n8n. Optional `workflowId` for a single workflow, `activeOnly` (default true), `limit` (default 50).
 
 **`n8n_validate_workflow`** - static checks on a workflow: deprecated node types (function → code), legacy Code-node API (`$node[]`, `items` global, `require()`), orphan nodes, disabled nodes, missing trigger. Returns issues with severity (error/warning/info) and a summary count.
+
+### Write tools (behind `enableEdit`)
+
+**`n8n_activate`** - activate a workflow so its triggers start firing. Idempotent.
+
+**`n8n_deactivate`** - deactivate a workflow so triggers stop firing. Running executions are not cancelled. Idempotent.
 
 **`n8n_trigger`** - run a workflow. Two modes:
 - `mode: "webhook"` + `webhookPath` - POST (or GET/PUT/DELETE) to the configured base URL + path, with an optional JSON `payload`. This is the reliable path.
@@ -96,7 +102,7 @@ This plugin is for OpenClaw specifically. For other Claude-compatible clients, w
 - [x] `n8n_trigger` (webhook + manual)
 - [x] `n8n_list_webhooks` (surface webhook paths for mode='webhook')
 - [x] `n8n_validate_workflow` (Code node + deprecated node checks)
-- [ ] `n8n_activate` / `n8n_deactivate` (behind `enableEdit`)
+- [x] `n8n_activate` / `n8n_deactivate` (behind `enableEdit`)
 - [ ] `n8n_save_workflow` with auto-backup + rollback-on-failure (behind `enableEdit`)
 - [ ] `n8n_search_executions` (text search across run logs)
 - [ ] MCP wrapper + npm publish

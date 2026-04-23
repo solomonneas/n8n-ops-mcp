@@ -89,6 +89,19 @@ for (const w of activeList.data) {
 }
 console.log(`  total webhooks found: ${webhookHits}`);
 
+if (process.env.SMOKE_WRITE === "1") {
+  const target = list.data.find((w) => !w.active && w.isArchived !== true);
+  if (target) {
+    console.log(`\n[SMOKE_WRITE] Round-trip activate/deactivate on ${target.id} (${target.name})`);
+    const activated = await client.activateWorkflow(String(target.id));
+    console.log(`  activated: active=${activated.active}`);
+    const deactivated = await client.deactivateWorkflow(String(target.id));
+    console.log(`  deactivated: active=${deactivated.active}`);
+  } else {
+    console.log("\n[SMOKE_WRITE] No inactive workflow found to round-trip.");
+  }
+}
+
 console.log("\nValidating first active workflow:");
 const firstActive = activeList.data[0];
 if (firstActive) {

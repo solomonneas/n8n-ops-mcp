@@ -115,6 +115,24 @@ export class N8nClient {
     return this.request<N8nWorkflow>(`/api/v1/workflows/${id}`);
   }
 
+  async activateWorkflow(id: string): Promise<N8nWorkflow> {
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      throw new Error(`Invalid workflow id: ${id}`);
+    }
+    return this.request<N8nWorkflow>(`/api/v1/workflows/${id}/activate`, {
+      method: "POST",
+    });
+  }
+
+  async deactivateWorkflow(id: string): Promise<N8nWorkflow> {
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      throw new Error(`Invalid workflow id: ${id}`);
+    }
+    return this.request<N8nWorkflow>(`/api/v1/workflows/${id}/deactivate`, {
+      method: "POST",
+    });
+  }
+
   async executeWorkflow(
     id: string,
     payload?: Record<string, unknown>,

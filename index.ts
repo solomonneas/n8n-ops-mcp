@@ -8,6 +8,8 @@ import { createGetExecutionTool } from "./src/tools/get-execution.ts";
 import { createTriggerTool } from "./src/tools/trigger.ts";
 import { createListWebhooksTool } from "./src/tools/list-webhooks.ts";
 import { createValidateWorkflowTool } from "./src/tools/validate-workflow.ts";
+import { createActivateTool } from "./src/tools/activate.ts";
+import { createDeactivateTool } from "./src/tools/deactivate.ts";
 
 export default definePluginEntry({
   id: "n8n",
@@ -34,6 +36,11 @@ export default definePluginEntry({
       createListWebhooksTool({ getClient, baseUrl: config.baseUrl }) as AnyAgentTool,
     );
     api.registerTool(createValidateWorkflowTool(getClient) as AnyAgentTool);
+
+    if (config.enableEdit) {
+      api.registerTool(createActivateTool(getClient) as AnyAgentTool);
+      api.registerTool(createDeactivateTool(getClient) as AnyAgentTool);
+    }
   },
 });
 
