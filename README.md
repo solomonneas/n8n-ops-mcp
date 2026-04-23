@@ -2,7 +2,7 @@
 
 n8n ops plugin for [OpenClaw](https://github.com/openclaw/openclaw). List, inspect, trigger, and safely edit n8n workflows from OpenClaw agents.
 
-Status: read-only tools (`n8n_list_workflows`, `n8n_get_workflow`, `n8n_list_executions`). Get-execution + trigger tools in later drops.
+Status: read-only tools (`n8n_list_workflows`, `n8n_get_workflow`, `n8n_list_executions`, `n8n_get_execution`). Trigger tool next.
 
 ## Why
 
@@ -15,6 +15,8 @@ OpenClaw agents have no native awareness of your n8n footprint. If a pipeline br
 **`n8n_get_workflow`** - fetch one workflow by id. Returns metadata by default. Pass `includeDefinition: true` to get the full node graph + connections.
 
 **`n8n_list_executions`** - list recent executions with optional `workflowId`, `status` (success/error/running/waiting/canceled), `limit` filters. Returns id, workflowId, workflowName, status, mode, startedAt, stoppedAt.
+
+**`n8n_get_execution`** - fetch one execution by id. Includes per-node run log (truncated to `maxExecutionLogBytes`, default 64 KB, with a tail hint when it exceeds) and the raw error object verbatim when status is `error`. Pass `includeRunData: false` to skip the run log and get just status + error.
 
 ## Install
 
@@ -82,7 +84,7 @@ This plugin is for OpenClaw specifically. For other Claude-compatible clients, w
 - [x] `n8n_list_workflows`
 - [x] `n8n_get_workflow`
 - [x] `n8n_list_executions`
-- [ ] `n8n_get_execution`
+- [x] `n8n_get_execution`
 - [ ] `n8n_trigger` (webhook + manual)
 - [ ] `n8n_search_executions` (text search across run logs)
 - [ ] `n8n_save_workflow` with auto-backup + rollback-on-failure (behind `enableEdit`)

@@ -115,6 +115,20 @@ export class N8nClient {
     return this.request<N8nWorkflow>(`/api/v1/workflows/${id}`);
   }
 
+  async getExecution(
+    id: string,
+    opts: { includeData?: boolean } = {},
+  ): Promise<N8nExecution> {
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      throw new Error(`Invalid execution id: ${id}`);
+    }
+    const qs = new URLSearchParams();
+    if (opts.includeData) qs.set("includeData", "true");
+    return this.request<N8nExecution>(
+      `/api/v1/executions/${id}${qs.toString() ? `?${qs}` : ""}`,
+    );
+  }
+
   async listExecutions(params: {
     workflowId?: string;
     status?: string;

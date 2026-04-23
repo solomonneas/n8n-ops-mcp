@@ -31,3 +31,23 @@ for (const ex of executions.data) {
     `  - ${ex.id}  workflow=${ex.workflowId}  status=${status}  mode=${ex.mode}  started=${ex.startedAt ?? "?"}`,
   );
 }
+
+if (executions.data.length > 0) {
+  const errored = executions.data.find((e) => e.status === "error")
+    ?? executions.data[0];
+  const detail = await client.getExecution(String(errored.id), {
+    includeData: true,
+  });
+  const nodes = detail.data?.resultData?.runData
+    ? Object.keys(detail.data.resultData.runData).length
+    : 0;
+  const hasError = detail.data?.resultData?.error !== undefined;
+  console.log(
+    `\nFetched execution ${detail.id}: status=${detail.status ?? "?"} nodes=${nodes} hasError=${hasError}`,
+  );
+  if (hasError) {
+    const err = detail.data?.resultData?.error as Record<string, unknown> | undefined;
+    const msg = err && typeof err.message === "string" ? err.message : "(no message)";
+    console.log(`  error.message: ${msg}`);
+  }
+}
