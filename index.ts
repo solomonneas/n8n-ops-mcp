@@ -10,6 +10,7 @@ import { createListWebhooksTool } from "./src/tools/list-webhooks.ts";
 import { createValidateWorkflowTool } from "./src/tools/validate-workflow.ts";
 import { createActivateTool } from "./src/tools/activate.ts";
 import { createDeactivateTool } from "./src/tools/deactivate.ts";
+import { createSaveWorkflowTool } from "./src/tools/save-workflow.ts";
 
 export default definePluginEntry({
   id: "n8n",
@@ -40,6 +41,12 @@ export default definePluginEntry({
     if (config.enableEdit) {
       api.registerTool(createActivateTool(getClient) as AnyAgentTool);
       api.registerTool(createDeactivateTool(getClient) as AnyAgentTool);
+      api.registerTool(
+        createSaveWorkflowTool({
+          getClient,
+          backupDir: config.backupDir,
+        }) as AnyAgentTool,
+      );
     }
   },
 });

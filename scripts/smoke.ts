@@ -90,6 +90,22 @@ for (const w of activeList.data) {
 console.log(`  total webhooks found: ${webhookHits}`);
 
 if (process.env.SMOKE_WRITE === "1") {
+  const savable = list.data.find((w) => !w.active && w.isArchived !== true);
+  if (savable) {
+    console.log(`\n[SMOKE_WRITE] Idempotent save round-trip on ${savable.id} (${savable.name})`);
+    const current = await client.getWorkflow(String(savable.id));
+    const body = {
+      name: current.name,
+      nodes: current.nodes,
+      connections: current.connections,
+      settings: current.settings ?? {},
+    };
+    const saved = await client.saveWorkflow(String(savable.id), body);
+    console.log(`  saved: versionId=${saved.versionId ?? "?"} updatedAt=${saved.updatedAt}`);
+  }
+}
+
+if (process.env.SMOKE_WRITE === "1") {
   const target = list.data.find((w) => !w.active && w.isArchived !== true);
   if (target) {
     console.log(`\n[SMOKE_WRITE] Round-trip activate/deactivate on ${target.id} (${target.name})`);

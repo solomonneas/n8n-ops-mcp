@@ -2,7 +2,7 @@
 
 n8n ops plugin for [OpenClaw](https://github.com/openclaw/openclaw). List, inspect, trigger, and safely edit n8n workflows from OpenClaw agents.
 
-Status: v0.0.6 — read + trigger + validate + activate/deactivate (behind `enableEdit`). Full save with auto-backup next.
+Status: v0.1.0 — read + trigger + validate + activate/deactivate/save (behind `enableEdit` with auto-backup). MCP wrapper and npm publish next.
 
 ## Why
 
@@ -27,6 +27,8 @@ OpenClaw agents have no native awareness of your n8n footprint. If a pipeline br
 **`n8n_activate`** - activate a workflow so its triggers start firing. Idempotent.
 
 **`n8n_deactivate`** - deactivate a workflow so triggers stop firing. Running executions are not cancelled. Idempotent.
+
+**`n8n_save_workflow`** - overwrite a workflow. Before writing: fetches the current version, snapshots it to `backupDir` as `<id>-<timestamp>.json` (mode 0600), runs `validateWorkflow` on the proposed new state, and aborts on error-severity issues (pass `skipValidation: true` to bypass). Requires `confirm: true` to actually PUT. Response includes the backup path and a `restoreHint` describing how to roll back.
 
 **`n8n_trigger`** - run a workflow. Two modes:
 - `mode: "webhook"` + `webhookPath` - POST (or GET/PUT/DELETE) to the configured base URL + path, with an optional JSON `payload`. This is the reliable path.
@@ -103,7 +105,7 @@ This plugin is for OpenClaw specifically. For other Claude-compatible clients, w
 - [x] `n8n_list_webhooks` (surface webhook paths for mode='webhook')
 - [x] `n8n_validate_workflow` (Code node + deprecated node checks)
 - [x] `n8n_activate` / `n8n_deactivate` (behind `enableEdit`)
-- [ ] `n8n_save_workflow` with auto-backup + rollback-on-failure (behind `enableEdit`)
+- [x] `n8n_save_workflow` with auto-backup + validation gate (behind `enableEdit`)
 - [ ] `n8n_search_executions` (text search across run logs)
 - [ ] MCP wrapper + npm publish
 
