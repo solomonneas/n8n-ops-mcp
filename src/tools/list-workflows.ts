@@ -20,7 +20,7 @@ const Schema = Type.Object(
   { additionalProperties: false },
 );
 
-export function createListWorkflowsTool(client: N8nClient) {
+export function createListWorkflowsTool(getClient: () => N8nClient) {
   return {
     name: "n8n_list_workflows",
     label: "n8n: list workflows",
@@ -34,7 +34,7 @@ export function createListWorkflowsTool(client: N8nClient) {
         name?: string;
         limit?: number;
       };
-      const res = await client.listWorkflows({
+      const res = await getClient().listWorkflows({
         active: params.active,
         tags: params.tags,
         limit: params.limit ?? 100,

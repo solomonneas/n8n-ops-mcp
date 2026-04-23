@@ -15,7 +15,7 @@ const Schema = Type.Object(
   { additionalProperties: false },
 );
 
-export function createGetWorkflowTool(client: N8nClient) {
+export function createGetWorkflowTool(getClient: () => N8nClient) {
   return {
     name: "n8n_get_workflow",
     label: "n8n: get workflow",
@@ -24,7 +24,7 @@ export function createGetWorkflowTool(client: N8nClient) {
     parameters: Schema,
     execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
       const params = rawParams as { id: string; includeDefinition?: boolean };
-      const wf: N8nWorkflow = await client.getWorkflow(params.id);
+      const wf: N8nWorkflow = await getClient().getWorkflow(params.id);
       const base = {
         id: wf.id,
         name: wf.name,

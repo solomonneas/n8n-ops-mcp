@@ -1,5 +1,6 @@
 import { definePluginEntry, type AnyAgentTool } from "openclaw/plugin-sdk/plugin-entry";
-import { makeClient, resolveConfig } from "./src/config.ts";
+import type { N8nClient } from "./src/client.ts";
+import { makeClient, resolveConfig, type N8nPluginConfig } from "./src/config.ts";
 import { createListWorkflowsTool } from "./src/tools/list-workflows.ts";
 import { createGetWorkflowTool } from "./src/tools/get-workflow.ts";
 
@@ -12,9 +13,17 @@ export default definePluginEntry({
     if (api.registrationMode !== "full") return;
 
     const config = resolveConfig(api.pluginConfig);
-    const client = makeClient(config);
+    const getClient = lazyClient(config);
 
-    api.registerTool(createListWorkflowsTool(client) as AnyAgentTool);
-    api.registerTool(createGetWorkflowTool(client) as AnyAgentTool);
+    api.registerTool(createListWorkflowsTool(getClient) as AnyAgentTool);
+    api.registerTool(createGetWorkflowTool(getClient) as AnyAgentTool);
   },
 });
+
+function lazyClient(config: N8nPluginConfig): () => N8nClient {
+  let cached: N8nClient | undefined;
+  return () => {
+    if (!cached) cached = makeClient(config);
+    return cached;
+  };
+}
