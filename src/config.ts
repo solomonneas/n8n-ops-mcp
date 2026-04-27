@@ -5,6 +5,14 @@ export interface N8nPluginConfig {
   apiKeyInline: string;
   apiKeyEnv: string;
   enableEdit: boolean;
+  /**
+   * Second gate, on top of `enableEdit`, for the credential write tools
+   * (`n8n_create_credential`, `n8n_delete_credential`). Default false.
+   * Forces explicit opt-in for the only path in this package where agent
+   * input contains plaintext secrets (create) or where deletion can break
+   * every workflow referencing the credential (delete).
+   */
+  enableCredentialsWrite: boolean;
   maxExecutionLogBytes: number;
   requestTimeoutMs: number;
   backupDir?: string;
@@ -25,6 +33,7 @@ export function resolveConfig(raw: unknown): N8nPluginConfig {
     apiKeyInline,
     apiKeyEnv,
     enableEdit: c.enableEdit === true,
+    enableCredentialsWrite: c.enableCredentialsWrite === true,
     maxExecutionLogBytes:
       typeof c.maxExecutionLogBytes === "number" ? c.maxExecutionLogBytes : 65_536,
     requestTimeoutMs:

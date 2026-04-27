@@ -784,4 +784,134 @@ describe("N8nClient wire shape", () => {
       expect(out).toBe("Bearer ***REDACTED*** trailing");
     });
   });
+
+  describe("createCredential body-stripping on error", () => {
+    it("never includes the response body or echoed `data` in the thrown error message", async () => {
+      const secretToken = "ghp_super_secret_should_not_leak";
+      // n8n echoes back the request body on a 400 — common when the
+      // credential type is unknown. Our client must NOT propagate that
+      // body to the tool layer, or `data` could leak into agent context.
+      fake.queue({
+        status: 400,
+        body: {
+          message: "type 'bogusType' is not supported",
+          data: { token: secretToken },
+        },
+      });
+      const client = buildClient();
+
+      let caught: unknown;
+      try {
+        await client.createCredential({
+          name: "test",
+          type: "bogusType",
+          data: { token: secretToken },
+        });
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(caught).toBeInstanceOf(N8nApiError);
+      const apiErr = caught as N8nApiError;
+      expect(apiErr.status).toBe(400);
+      expect(apiErr.path).toBe("/api/v1/credentials");
+      expect(apiErr.message).not.toContain(secretToken);
+      expect(apiErr.message).not.toContain("bogusType");
+    });
+
+    it("never includes body fragments when n8n returns malformed 2xx (JSON.parse leak path)", async () => {
+      // V8's JSON.parse SyntaxError messages include a slice of the
+      // unparseable text. On a malformed 2xx that echoes the request
+      // body — possible from a buggy n8n release or a misbehaving
+      // proxy — a credential secret could leak through the parse-error
+      // message. The wrapper must catch ALL error classes, not only
+      // N8nApiError.
+      const secretFragment = "ghp_super_secret_should_not_leak";
+      fake.queue({
+        status: 200,
+        // Not valid JSON — V8's parser will surface a slice of this in
+        // the SyntaxError.
+        text: `not-json ${secretFragment}`,
+      });
+      const client = buildClient();
+
+      let caught: unknown;
+      try {
+        await client.createCredential({
+          name: "GH",
+          type: "githubApi",
+          data: { token: secretFragment },
+        });
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(caught).toBeInstanceOf(Error);
+      const msg = (caught as Error).message;
+      expect(msg).not.toContain(secretFragment);
+      // Also assert the wrapper didn't preserve the original via `cause`
+      // — `cause`'s message would carry the leak too.
+      expect((caught as Error & { cause?: unknown }).cause).toBeUndefined();
+    });
+
+    it("returns the credential on success", async () => {
+      fake.queue({
+        status: 200,
+        body: {
+          id: "c1",
+          name: "GH",
+          type: "githubApi",
+          createdAt: "2026-04-27T00:00:00.000Z",
+          updatedAt: "2026-04-27T00:00:00.000Z",
+        },
+      });
+      const client = buildClient();
+
+      const created = await client.createCredential({
+        name: "GH",
+        type: "githubApi",
+        data: { token: "x" },
+      });
+
+      expect(created.id).toBe("c1");
+      expect(fake.calls).toHaveLength(1);
+      expect(fake.calls[0].method).toBe("POST");
+      expect(fake.calls[0].url).toBe(`${BASE}/api/v1/credentials`);
+    });
+  });
+
+  describe("listCredentials + deleteCredential wire shape", () => {
+    it("listCredentials forwards limit + cursor", async () => {
+      fake.queue({ status: 200, body: { data: [] } });
+      const client = buildClient();
+      await client.listCredentials({ limit: 50, cursor: "abc" });
+      expect(fake.calls[0].url).toContain("limit=50");
+      expect(fake.calls[0].url).toContain("cursor=abc");
+    });
+
+    it("getCredentialSchema URL-encodes the type name", async () => {
+      fake.queue({ status: 200, body: { type: "object" } });
+      const client = buildClient();
+      await client.getCredentialSchema("githubApi");
+      expect(fake.calls[0].url).toBe(
+        `${BASE}/api/v1/credentials/schema/githubApi`,
+      );
+    });
+
+    it("getCredentialSchema rejects unsafe type names before hitting the network", async () => {
+      const client = buildClient();
+      await expect(
+        client.getCredentialSchema("../../etc/passwd"),
+      ).rejects.toThrow(/Invalid credential type/);
+      expect(fake.calls).toHaveLength(0);
+    });
+
+    it("deleteCredential rejects unsafe ids before hitting the network", async () => {
+      const client = buildClient();
+      await expect(
+        client.deleteCredential("../../etc/passwd"),
+      ).rejects.toThrow(/Invalid credential id/);
+      expect(fake.calls).toHaveLength(0);
+    });
+  });
 });

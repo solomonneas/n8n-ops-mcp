@@ -39,6 +39,10 @@ export function makeFakeClient(overrides: Partial<FakeClient> = {}): N8nClient {
     getWorkflowTags: vi.fn(),
     setWorkflowTags: vi.fn(),
     runAudit: vi.fn(),
+    listCredentials: vi.fn(),
+    getCredentialSchema: vi.fn(),
+    createCredential: vi.fn(),
+    deleteCredential: vi.fn(),
   } as unknown as FakeClient;
   return { ...base, ...overrides } as unknown as N8nClient;
 }

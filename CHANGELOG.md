@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-04-27
+
+### Added
+- `n8n_list_credentials` - `GET /credentials`. Returns metadata only — n8n's API contract excludes the encrypted `data` field, and the tool layer strips `data` defensively in case of regression. Each row: `{id, name, type, createdAt, updatedAt, shared[]}`. Requires the API key to belong to an instance owner/admin; 401 surfaces as `{ ok: false, reason: "unauthorized" }` with a clear hint.
+- `n8n_get_credential_schema` - `GET /credentials/schema/{credentialTypeName}`. Returns the raw JSON Schema for a credential type's required `data` shape. 404 → `reason: "not_found"`. Use before `n8n_create_credential`.
+- `n8n_find_workflows_using_credential` - composed read-only scanner. Pass either `credentialId` (exact, preferred) or `credentialName` (case-insensitive substring). Returns one finding per `(workflowId, nodeName, credentialType)` plus per-workflow match counts. Same fan-out shape as `n8n_audit_browser_bridge_usage` (bounded concurrency, `fetchErrors` for per-workflow failures, `truncated` flag, `maxWorkflows` default 250). Pre-`n8n_delete_credential` blast-radius answer.
+- `n8n_check_disabled_nodes` - composed read-only scanner. Surfaces every node with `disabled: true` across recent workflows; the n8n UI doesn't list them anywhere obvious.
+- `n8n_create_credential` - `POST /credentials`. **Double-gated**: requires both `enableEdit` AND `enableCredentialsWrite` (default false). Confirm-gated. The tool layer NEVER echoes `data` back, even on error: the client wraps n8n's response body in a status-only `N8nApiError` before re-throwing, so secrets cannot leak via 400 validation messages.
+- `n8n_delete_credential` - `DELETE /credentials/{id}`. **Double-gated** + confirm-gated. Cascades — every workflow referencing the credential will fail on its next run; the refusal hint points to `n8n_find_workflows_using_credential` for blast-radius enumeration. 404 → `reason: "not_found"`. The deleted-credential payload has `data` stripped at the tool layer regardless of upstream behavior.
+- New plugin config flag `enableCredentialsWrite` (default false) and matching env var `N8N_ENABLE_CREDENTIALS_WRITE`. `enableEdit` alone never exposes credential writes.
+
+### Notes
+- Tool count is now 36. README has a new "Security model" section documenting the two-gate write design, the redaction-at-tool-layer pattern, and the body-stripping-on-error guarantee for `create-credential`.
+- Endpoint shapes verified against the live n8n OpenAPI spec at `/api/v1/openapi.yml`. `data` is `writeOnly` on every relevant schema; we trust but verify with defensive redaction.
+- Deferred to 0.15.0+ if real demand surfaces: `PATCH /credentials/{id}` (update), `PUT /credentials/{id}/transfer` (project transfer), variables CRUD, projects API.
+
 ## [0.13.0] - 2026-04-27
 
 ### Added

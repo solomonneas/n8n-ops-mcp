@@ -90,6 +90,36 @@ export interface N8nTag {
   updatedAt?: string;
 }
 
+/**
+ * Shape returned by POST /credentials and DELETE /credentials/{id}. The
+ * `data` field is `writeOnly` per n8n's OpenAPI spec — n8n never echoes it
+ * back. We type it as optional+unknown so the runtime defensive-redact has
+ * a slot to scrub if a future n8n release regresses, but downstream code
+ * must treat any presence of `data` as a leak to suppress.
+ */
+export interface N8nCredentialResponse {
+  id: string;
+  name: string;
+  type: string;
+  createdAt?: string;
+  updatedAt?: string;
+  data?: unknown;
+  isResolvable?: boolean;
+  [key: string]: unknown;
+}
+
+export interface N8nCredentialSharedItem {
+  id: string;
+  name: string;
+  role: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface N8nCredentialListItem extends N8nCredentialResponse {
+  shared?: N8nCredentialSharedItem[];
+}
+
 export interface N8nAuditOptions {
   daysAbandonedWorkflow?: number;
   categories?: Array<
@@ -495,6 +525,76 @@ export class N8nClient {
       method: "PUT",
       body: JSON.stringify(body),
     });
+  }
+
+  async listCredentials(
+    params: { limit?: number; cursor?: string } = {},
+  ): Promise<N8nListResponse<N8nCredentialListItem>> {
+    const qs = new URLSearchParams();
+    if (params.limit) qs.set("limit", String(params.limit));
+    if (params.cursor) qs.set("cursor", params.cursor);
+    return this.request<N8nListResponse<N8nCredentialListItem>>(
+      `/api/v1/credentials${qs.toString() ? `?${qs}` : ""}`,
+    );
+  }
+
+  async getCredentialSchema(
+    credentialTypeName: string,
+  ): Promise<Record<string, unknown>> {
+    if (!/^[A-Za-z0-9._-]+$/.test(credentialTypeName)) {
+      throw new Error(`Invalid credential type: ${credentialTypeName}`);
+    }
+    return this.request<Record<string, unknown>>(
+      `/api/v1/credentials/schema/${encodeURIComponent(credentialTypeName)}`,
+    );
+  }
+
+  /**
+   * Create a credential. The `data` field of `body` carries plaintext
+   * secrets up to n8n. On any error we deliberately replace the message
+   * with a body-free synthetic — n8n's response text (or a JSON.parse
+   * error from a malformed 2xx response, which V8 surfaces with a slice
+   * of the body in the message) can echo back fragments of the submitted
+   * `data`. We do NOT chain the original error as `cause` because the
+   * cause's `.message` would carry the leak. Tool layer adds a final
+   * defensive layer.
+   */
+  async createCredential(body: {
+    name: string;
+    type: string;
+    data: Record<string, unknown>;
+  }): Promise<N8nCredentialResponse> {
+    try {
+      return await this.request<N8nCredentialResponse>(`/api/v1/credentials`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      if (err instanceof N8nApiError) {
+        throw new N8nApiError(
+          err.status,
+          err.path,
+          `credential create failed (status ${err.status})`,
+        );
+      }
+      // Catch-all for any non-API error class: AbortError, network
+      // errors, JSON.parse leaks on malformed 2xx responses, etc.
+      // V8's SyntaxError messages include up to ~20 chars of the
+      // unparseable text, which on a 200 echo could be the secret.
+      throw new Error(
+        "credential create failed: non-API error suppressed (body-free)",
+      );
+    }
+  }
+
+  async deleteCredential(id: string): Promise<N8nCredentialResponse> {
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      throw new Error(`Invalid credential id: ${id}`);
+    }
+    return this.request<N8nCredentialResponse>(
+      `/api/v1/credentials/${id}`,
+      { method: "DELETE" },
+    );
   }
 
   async runAudit(

@@ -35,6 +35,10 @@ For a catalog/docs tool that indexes n8n's node library, see [n8n-mcp](https://w
 | `n8n_execution_stats` | Per-workflow stats over a recent window: counts, failure rate, avg + p95 runtime, last failure | |
 | `n8n_list_tags` | List workflow tags with `id`, `name`, `createdAt`, `updatedAt` | |
 | `n8n_get_workflow_tags` | Read the tags currently attached to a workflow | |
+| `n8n_list_credentials` | List credentials (metadata only — secrets never echoed; admin/owner key required) | |
+| `n8n_get_credential_schema` | Fetch the JSON schema for a credential type (e.g. `freshdeskApi`) | |
+| `n8n_find_workflows_using_credential` | Find every workflow node that references a credential by `id` (preferred) or `name` substring; rotation/blast-radius scanner | |
+| `n8n_check_disabled_nodes` | Scan workflows for `disabled: true` nodes — common drift signals not surfaced in the n8n UI | |
 | `n8n_create_workflow` | Create a workflow (accepts `n8n_get_workflow` output directly; primary restore path) | ✓ |
 | `n8n_activate` | Enable a workflow's triggers | ✓ |
 | `n8n_deactivate` | Disable a workflow's triggers | ✓ |
@@ -52,6 +56,8 @@ For a catalog/docs tool that indexes n8n's node library, see [n8n-mcp](https://w
 | `n8n_delete_tag` | Permanently delete a tag (confirm-gated; cascades — removes the tag from every workflow) | ✓ |
 | `n8n_set_workflow_tags` | Replace the tag set on a workflow (no confirm; reversible by re-setting) | ✓ |
 | `n8n_retry_executions` | Batch retry executions (confirm-gated, max 50 ids, AbortController on 5xx) | ✓ |
+| `n8n_create_credential` | Create a credential (confirm-gated; **double-gated** behind `enableCredentialsWrite`; tool layer redacts `data` from every response branch) | ✓✓ |
+| `n8n_delete_credential` | Permanently delete a credential (confirm-gated; **double-gated**; cascades — every workflow referencing it will fail) | ✓✓ |
 
 Write tools are hidden unless `N8N_ENABLE_EDIT=true`.
 
@@ -126,7 +132,36 @@ Write tools are hidden unless `N8N_ENABLE_EDIT=true`.
 
 **`n8n_set_workflow_tags`** - `PUT /workflows/{id}/tags`. **REPLACES** the workflow's tag set (not append) — pass the full desired list. Empty `tagIds: []` clears all tags. Tag ids are deduped before send. No confirm gate (reversible by re-setting). Returns `ok: false` with `reason: "not_found"` on 404 (the workflow id OR one of the tag ids does not exist; verify both with `n8n_list_workflows` and `n8n_list_tags`).
 
+**`n8n_list_credentials`** - `GET /credentials`. Returns metadata only — n8n's API explicitly excludes the `data` field (encrypted secrets) from list responses, and the tool layer strips `data` defensively in case of a future regression. Each row: `{id, name, type, createdAt, updatedAt, shared[]}`. Optional `limit` (default 100, max 250) and `cursor`. Requires the API key to belong to an instance owner or admin — non-admin keys get `ok: false, reason: "unauthorized"` with a clear hint.
+
+**`n8n_get_credential_schema`** - `GET /credentials/schema/{credentialTypeName}`. Returns the raw JSON Schema describing the required `data` shape for a credential type (e.g. `freshdeskApi` → `{ apiKey, domain }` required). Use this **before** calling `n8n_create_credential` so you know what fields to populate. 404 returns `reason: "not_found"`; 401 returns `reason: "unauthorized"`.
+
+**`n8n_find_workflows_using_credential`** - composed scanner (no direct n8n endpoint). Walks workflows and inspects every node's `credentials` field. Pass either `credentialId` (exact, preferred) or `credentialName` (case-insensitive substring fallback). Returns one finding per `(workflowId, nodeName, credentialType)` plus a per-workflow summary count. Same fan-out shape as `n8n_audit_browser_bridge_usage` (bounded concurrency, `fetchErrors` for per-workflow failures, `truncated` flag, `maxWorkflows` default 250). The answer to "I'm rotating Slack creds, where do I need to update?" — run this **before** `n8n_delete_credential` to see the blast radius.
+
+**`n8n_check_disabled_nodes`** - composed scanner. Surfaces every node with `disabled: true` across recent workflows. One finding per `(workflowId, nodeName, nodeType)` plus per-workflow disabled count, sorted desc. Disabled nodes are common drift signals (frozen mid-debug, forgotten cleanup) and the n8n UI doesn't list them anywhere obvious. Same fan-out + filter shape as the other scanners.
+
+**`n8n_create_credential`** - `POST /credentials`. **Double-gated**: requires both `enableEdit` AND `enableCredentialsWrite` (default false). Confirm-gated. `data` carries plaintext secrets to n8n; the tool layer **never** echoes `data` back, even on error — n8n 400s with body content are wrapped to a status-only error before surfacing, so secrets cannot leak via validation messages. Pre-call: use `n8n_get_credential_schema` to learn the required `data` shape. Post-call: response includes `id`, `name`, `type`, timestamps; no `data`. NOT idempotent — calling twice with the same name creates two credentials.
+
+**`n8n_delete_credential`** - `DELETE /credentials/{id}`. **Double-gated** + confirm-gated. **Cascades**: every workflow referencing this credential will fail on its next run — call `n8n_find_workflows_using_credential` first to enumerate the blast radius. 404 returns `reason: "not_found"`. The deleted-credential payload echoed by n8n has `data` stripped at the tool layer regardless of upstream behavior.
+
 </details>
+
+## Security model
+
+Two flags gate write access, with deliberately different blast radii:
+
+- **`enableEdit`** (default `false`) - exposes the workflow + execution lifecycle write tools (create/save/archive/delete workflows, cancel/retry/delete executions, pin/unpin node data, tag CRUD). Destructive tools are confirm-gated and the destructive workflow ones snapshot to `backupDir` first.
+- **`enableCredentialsWrite`** (default `false`) - **second gate**, on top of `enableEdit`, required to expose `n8n_create_credential` and `n8n_delete_credential`. An agent that has been overprovisioned with `enableEdit` cannot inject or destroy credentials without this separate, deliberate config change.
+
+Both flags must be true for credential writes to register. The credential **read** tools (`list-credentials`, `get-credential-schema`, `find-workflows-using-credential`) and the disabled-node scanner are always available regardless.
+
+Why credentials get a second gate:
+1. `create-credential` is the only tool in this package where agent input contains plaintext secrets. A prompt-injected or confused agent with `enableEdit` shouldn't be able to inject credentials.
+2. `delete-credential` cascades — every workflow referencing the credential fails on its next run. The blast radius is wider than any single workflow operation.
+
+Defense-in-depth on `data`:
+- n8n's OpenAPI marks `data` as `writeOnly` — the API contract excludes it from every response. We trust but verify: **the tool layer strips `data` from every credential response before surfacing**, including success paths and the deleted-credential echo, so a future n8n regression can't leak secrets through us.
+- On `create-credential` errors, the n8n response body (which can echo back fragments of submitted `data` on validation 400s) is replaced at the client layer with a status-only error message. The tool surfaces `status` + `path` only. Tests assert no portion of a forced-400 request body reaches the tool response.
 
 ## Install
 
@@ -143,6 +178,7 @@ Generate an API key in n8n under **Settings → API**, then set these env vars i
 | `N8N_BASE_URL` | yes | - | n8n base URL, e.g. `http://localhost:5678` |
 | `N8N_API_KEY` | yes | - | n8n Public API key (`X-N8N-API-KEY`) |
 | `N8N_ENABLE_EDIT` | no | `false` | Expose write tools |
+| `N8N_ENABLE_CREDENTIALS_WRITE` | no | `false` | Second gate (on top of `N8N_ENABLE_EDIT`) for `n8n_create_credential` and `n8n_delete_credential`. See [Security model](#security-model). |
 | `N8N_BACKUP_DIR` | no | `~/.n8n-backups` | Where `n8n_save_workflow` writes pre-save snapshots |
 | `N8N_MAX_EXECUTION_LOG_BYTES` | no | `65536` | Cap on inline execution log bytes |
 | `N8N_REQUEST_TIMEOUT_MS` | no | `15000` | HTTP timeout for n8n API calls |
@@ -252,7 +288,7 @@ Restart the gateway:
 systemctl --user restart openclaw-gateway
 ```
 
-Config keys: `baseUrl`, `apiKey`, `apiKeyEnv`, `enableEdit`, `maxExecutionLogBytes`, `requestTimeoutMs`, `backupDir`. See [`openclaw.plugin.json`](./openclaw.plugin.json) for the full schema.
+Config keys: `baseUrl`, `apiKey`, `apiKeyEnv`, `enableEdit`, `enableCredentialsWrite`, `maxExecutionLogBytes`, `requestTimeoutMs`, `backupDir`. See [`openclaw.plugin.json`](./openclaw.plugin.json) for the full schema and the [Security model](#security-model) for the two-gate write design.
 
 <details>
 <summary><b>OpenClaw - manual (non-ClawHub) install</b></summary>

@@ -43,8 +43,14 @@ import { createRunAuditTool } from "./src/tools/run-audit.ts";
 import { createRetryExecutionsTool } from "./src/tools/retry-executions.ts";
 import { createFindWorkflowsUsingNodeTypeTool } from "./src/tools/find-workflows-using-node-type.ts";
 import { createExecutionStatsTool } from "./src/tools/execution-stats.ts";
+import { createListCredentialsTool } from "./src/tools/list-credentials.ts";
+import { createGetCredentialSchemaTool } from "./src/tools/get-credential-schema.ts";
+import { createFindWorkflowsUsingCredentialTool } from "./src/tools/find-workflows-using-credential.ts";
+import { createCreateCredentialTool } from "./src/tools/create-credential.ts";
+import { createDeleteCredentialTool } from "./src/tools/delete-credential.ts";
+import { createCheckDisabledNodesTool } from "./src/tools/check-disabled-nodes.ts";
 
-const VERSION = "0.13.0";
+const VERSION = "0.14.0";
 
 function readConfigFromEnv(): N8nPluginConfig {
   const baseUrl = (process.env.N8N_BASE_URL ?? "").trim();
@@ -65,6 +71,8 @@ function readConfigFromEnv(): N8nPluginConfig {
     apiKeyInline: apiKey,
     apiKeyEnv,
     enableEdit: parseBool(process.env.N8N_ENABLE_EDIT) ?? false,
+    enableCredentialsWrite:
+      parseBool(process.env.N8N_ENABLE_CREDENTIALS_WRITE) ?? false,
     maxExecutionLogBytes: parsePosInt("N8N_MAX_EXECUTION_LOG_BYTES", 65_536, 1024),
     requestTimeoutMs: parsePosInt("N8N_REQUEST_TIMEOUT_MS", 15_000, 1000),
     backupDir: (process.env.N8N_BACKUP_DIR ?? "").trim() || undefined,
@@ -478,6 +486,95 @@ async function main(): Promise<void> {
       .describe("Page size for /executions calls (default 250)."),
   });
 
+  bind(server, createListCredentialsTool(getClient), {
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(250)
+      .optional()
+      .describe("Max credentials returned (default 100)."),
+    cursor: z
+      .string()
+      .optional()
+      .describe("Pagination cursor from a previous call's `nextCursor`."),
+  });
+
+  bind(server, createGetCredentialSchemaTool(getClient), {
+    credentialTypeName: z
+      .string()
+      .min(1)
+      .describe(
+        "n8n credential type name (e.g. 'githubApi', 'slackOAuth2Api').",
+      ),
+  });
+
+  bind(server, createFindWorkflowsUsingCredentialTool(getClient), {
+    credentialId: z
+      .string()
+      .optional()
+      .describe(
+        "Exact credential id to match (preferred). Either this or credentialName is required.",
+      ),
+    credentialName: z
+      .string()
+      .optional()
+      .describe(
+        "Case-insensitive substring match on credential name. Either this or credentialId is required.",
+      ),
+    activeOnly: z
+      .boolean()
+      .optional()
+      .describe("Only scan active workflows. Default false."),
+    includeArchived: z
+      .boolean()
+      .optional()
+      .describe("Include archived workflows in the scan. Default false."),
+    maxWorkflows: z
+      .number()
+      .int()
+      .min(1)
+      .max(1000)
+      .optional()
+      .describe(
+        "Cap on workflows INSPECTED (default 250). Counted after the active/archived filter, so the scanner may page through more list rows than this when many archived workflows are skipped, but it will not fetch more than `maxWorkflows` full workflow definitions.",
+      ),
+    concurrency: z
+      .number()
+      .int()
+      .min(1)
+      .max(8)
+      .optional()
+      .describe("Parallel getWorkflow requests (default 3, max 8)."),
+  });
+
+  bind(server, createCheckDisabledNodesTool(getClient), {
+    activeOnly: z
+      .boolean()
+      .optional()
+      .describe("Only scan active workflows. Default false."),
+    includeArchived: z
+      .boolean()
+      .optional()
+      .describe("Include archived workflows. Default false."),
+    maxWorkflows: z
+      .number()
+      .int()
+      .min(1)
+      .max(1000)
+      .optional()
+      .describe(
+        "Cap on workflows INSPECTED (default 250). Counted after the active/archived filter, so the scanner may page through more list rows than this when many archived workflows are skipped, but it will not fetch more than `maxWorkflows` full workflow definitions.",
+      ),
+    concurrency: z
+      .number()
+      .int()
+      .min(1)
+      .max(8)
+      .optional()
+      .describe("Parallel getWorkflow requests (default 3, max 8)."),
+  });
+
   bind(server, createDiffWorkflowTool(getClient), {
     id: z.string().describe("Workflow id to fetch as the 'after' side of the diff."),
     snapshotPath: z
@@ -739,6 +836,41 @@ async function main(): Promise<void> {
         .optional()
         .describe("Parallel retry POSTs. Default 3."),
     });
+
+    if (config.enableCredentialsWrite) {
+      bind(server, createCreateCredentialTool(getClient), {
+        name: z
+          .string()
+          .min(1)
+          .max(200)
+          .describe("Display name for the credential."),
+        type: z
+          .string()
+          .min(1)
+          .describe(
+            "n8n credential type name (e.g. 'githubApi'). Use n8n_get_credential_schema to confirm the data shape.",
+          ),
+        data: z
+          .record(z.string(), z.unknown())
+          .describe(
+            "Credential body matching the schema for `type`. Carries plaintext secrets — never echoed back, even on error.",
+          ),
+        confirm: z
+          .boolean()
+          .describe(
+            "Must be true to actually create. Creation injects secrets that persist long-term.",
+          ),
+      });
+
+      bind(server, createDeleteCredentialTool(getClient), {
+        id: z.string().describe("Credential id (from n8n_list_credentials)."),
+        confirm: z
+          .boolean()
+          .describe(
+            "Must be true to actually delete. Cascades — every workflow referencing this credential will fail on its next run.",
+          ),
+      });
+    }
   }
 
   const transport = new StdioServerTransport();

@@ -37,6 +37,12 @@ import { createRunAuditTool } from "./src/tools/run-audit.ts";
 import { createRetryExecutionsTool } from "./src/tools/retry-executions.ts";
 import { createFindWorkflowsUsingNodeTypeTool } from "./src/tools/find-workflows-using-node-type.ts";
 import { createExecutionStatsTool } from "./src/tools/execution-stats.ts";
+import { createListCredentialsTool } from "./src/tools/list-credentials.ts";
+import { createGetCredentialSchemaTool } from "./src/tools/get-credential-schema.ts";
+import { createFindWorkflowsUsingCredentialTool } from "./src/tools/find-workflows-using-credential.ts";
+import { createCreateCredentialTool } from "./src/tools/create-credential.ts";
+import { createDeleteCredentialTool } from "./src/tools/delete-credential.ts";
+import { createCheckDisabledNodesTool } from "./src/tools/check-disabled-nodes.ts";
 
 export default definePluginEntry({
   id: "n8n",
@@ -79,6 +85,14 @@ export default definePluginEntry({
       createFindWorkflowsUsingNodeTypeTool(getClient) as AnyAgentTool,
     );
     api.registerTool(createExecutionStatsTool(getClient) as AnyAgentTool);
+    api.registerTool(createListCredentialsTool(getClient) as AnyAgentTool);
+    api.registerTool(
+      createGetCredentialSchemaTool(getClient) as AnyAgentTool,
+    );
+    api.registerTool(
+      createFindWorkflowsUsingCredentialTool(getClient) as AnyAgentTool,
+    );
+    api.registerTool(createCheckDisabledNodesTool(getClient) as AnyAgentTool);
 
     if (config.enableEdit) {
       api.registerTool(createActivateTool(getClient) as AnyAgentTool);
@@ -108,6 +122,15 @@ export default definePluginEntry({
       api.registerTool(createDeleteTagTool(getClient) as AnyAgentTool);
       api.registerTool(createSetWorkflowTagsTool(getClient) as AnyAgentTool);
       api.registerTool(createRetryExecutionsTool(getClient) as AnyAgentTool);
+
+      if (config.enableCredentialsWrite) {
+        api.registerTool(
+          createCreateCredentialTool(getClient) as AnyAgentTool,
+        );
+        api.registerTool(
+          createDeleteCredentialTool(getClient) as AnyAgentTool,
+        );
+      }
     }
   },
 });

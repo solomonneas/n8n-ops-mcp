@@ -24,7 +24,12 @@
       "enableEdit": {
         "type": "boolean",
         "default": false,
-        "description": "Enable all workflow + execution lifecycle write tools (create, activate, deactivate, save, archive, unarchive, delete-workflow, cancel-execution, retry-execution, retry-executions, delete-execution, delete-executions, pin-node-data, unpin-node-data, create-tag, delete-tag, set-workflow-tags). Off by default. Destructive tools (save, delete-workflow, delete-execution, delete-executions, delete-tag, retry-executions) are confirm-gated; save and delete-workflow snapshot to backupDir first."
+        "description": "Enable all workflow + execution lifecycle write tools (create, activate, deactivate, save, archive, unarchive, delete-workflow, cancel-execution, retry-execution, retry-executions, delete-execution, delete-executions, pin-node-data, unpin-node-data, create-tag, delete-tag, set-workflow-tags). Off by default. Destructive tools (save, delete-workflow, delete-execution, delete-executions, delete-tag, retry-executions) are confirm-gated; save and delete-workflow snapshot to backupDir first. Does NOT enable credential writes — those need enableCredentialsWrite as a second gate."
+      },
+      "enableCredentialsWrite": {
+        "type": "boolean",
+        "default": false,
+        "description": "Second gate (on top of enableEdit) for credential write tools (create-credential, delete-credential). Off by default. The only path in this plugin where agent input contains plaintext secrets (create) and where deletion cascades to break every workflow referencing the credential (delete). Forces explicit opt-in: an agent that has been overprovisioned with enableEdit cannot inject or destroy credentials without a separate, deliberate config change. Both flags must be true for credential writes to register; the read tools (list-credentials, get-credential-schema, find-workflows-using-credential) and the disabled-node scanner are always available."
       },
       "maxExecutionLogBytes": {
         "type": "number",
@@ -55,7 +60,11 @@
     },
     "enableEdit": {
       "label": "Enable Edit Tools",
-      "help": "Exposes all workflow + execution lifecycle write tools. Workflows: create, save (confirm-gated, auto-backup), activate, deactivate, archive (reversible soft-delete), unarchive, delete-workflow (confirm-gated, snapshot-before-delete), pin/unpin node data. Executions: cancel, retry, retry-executions (batch, confirm-gated, capped at 50 ids), delete, delete-executions (batch fan-out, confirm-gated, idempotent on 404, 5xx aborts). Tags: create, delete (cascade-warned, confirm-gated), set-workflow-tags (replaces, no confirm — reversible). Prefer archive over delete-workflow for cleanup that preserves the id."
+      "help": "Exposes all workflow + execution lifecycle write tools. Workflows: create, save (confirm-gated, auto-backup), activate, deactivate, archive (reversible soft-delete), unarchive, delete-workflow (confirm-gated, snapshot-before-delete), pin/unpin node data. Executions: cancel, retry, retry-executions (batch, confirm-gated, capped at 50 ids), delete, delete-executions (batch fan-out, confirm-gated, idempotent on 404, 5xx aborts). Tags: create, delete (cascade-warned, confirm-gated), set-workflow-tags (replaces, no confirm — reversible). Prefer archive over delete-workflow for cleanup that preserves the id. Credential writes (create-credential, delete-credential) require an additional opt-in via enableCredentialsWrite."
+    },
+    "enableCredentialsWrite": {
+      "label": "Enable Credential Writes",
+      "help": "Second gate for the credential write tools (create-credential, delete-credential). Off by default. Required IN ADDITION to enableEdit — turning on enableEdit alone never exposes credential writes. Reason: create-credential is the only tool where agent input carries plaintext secrets, and delete-credential cascades to break every workflow that references the credential. Read tools (list-credentials, get-credential-schema, find-workflows-using-credential) are always available regardless of this flag."
     },
     "maxExecutionLogBytes": {
       "label": "Max Log Bytes",
