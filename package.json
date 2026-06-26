@@ -16,11 +16,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/solomonneas/n8n-ops-mcp.git"
+    "url": "https://github.com/lidless-labs/n8n-ops-mcp.git"
   },
-  "homepage": "https://github.com/solomonneas/n8n-ops-mcp#readme",
+  "homepage": "https://github.com/lidless-labs/n8n-ops-mcp#readme",
   "bugs": {
-    "url": "https://github.com/solomonneas/n8n-ops-mcp/issues"
+    "url": "https://github.com/lidless-labs/n8n-ops-mcp/issues"
   },
   "engines": {
     "node": ">=20.0.0"
