@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- README rewritten to lead with what / why / how-it-differs: ops-focused n8n MCP server, prominent website link, a copy-paste MCP client config that runs via `npx -y n8n-ops-mcp`, a keyword-rich "What it does" section, and explicit "Why not the bigger n8n MCP projects?" and "What n8n-ops-mcp is not" sections. Example hostnames are now a neutral `https://n8n.example.com`.
+
+### Added
+- Maintainer-health files: `SECURITY.md` (in/out-of-scope, write-tool side-effect warning, vulnerability reporting), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, GitHub issue templates (`bug.yml`, `feature.yml`, `config.yml` with `blank_issues_enabled: false` and contact links), and a pull request template with a no-PII / content-guard checkbox.
+
+Docs and repo metadata only. No behavior changes.
+
 ## [0.14.0] - 2026-04-27
 
 ### Added

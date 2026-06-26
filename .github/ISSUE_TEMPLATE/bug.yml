@@ -1,0 +1,69 @@
+name: Bug report
+description: Something is broken in n8n-ops-mcp itself - a tool, the API client, a write/confirm gate, the MCP wrapper, or the docs.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Which tool did you call, with what arguments, and what did you expect versus what you got?
+      placeholder: |
+        I called `n8n_list_executions` with `status=error` and got X.
+        I expected Y.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: n8n-ops-mcp version
+      description: From your install (e.g. `npm ls n8n-ops-mcp` or the version in your MCP client).
+      placeholder: 0.14.0
+    validations:
+      required: true
+  - type: input
+    id: n8n-version
+    attributes:
+      label: n8n version
+      description: Your n8n instance version (Settings -> About in the n8n UI).
+      placeholder: 1.x.x
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: MCP client / host
+      placeholder: Claude Desktop, Claude Code, Codex CLI, Cursor, OpenClaw, etc.
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      placeholder: 20.x or 22.x
+    validations:
+      required: true
+  - type: dropdown
+    id: edit-mode
+    attributes:
+      label: Were write tools enabled?
+      options:
+        - "No (N8N_ENABLE_EDIT unset / false)"
+        - "Yes (N8N_ENABLE_EDIT=true)"
+        - "Yes, plus credential writes (N8N_ENABLE_CREDENTIALS_WRITE=true)"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Full output
+      description: Paste the full tool response and any stderr. Redact your n8n API key, hostnames, and personal paths, but keep enough for us to reproduce.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: scrub
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I have removed my n8n API key, private hostnames, account names, and personal paths from this report.
+          required: true

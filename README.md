@@ -5,30 +5,61 @@
 <h1 align="center">n8n-ops-mcp</h1>
 
 <p align="center">
-  <strong>Ops-focused n8n tools for MCP-compatible agents and OpenClaw plugins.</strong>
+  <strong>Ops-focused n8n MCP server: list, trigger, validate, and audit n8n workflows from any AI client.</strong>
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/n8n-ops-mcp"><img src="https://img.shields.io/npm/v/n8n-ops-mcp?style=for-the-badge&logo=npm&logoColor=white" alt="npm version"></a>
-  <img src="https://img.shields.io/badge/Node.js-%3E%3D20-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js >=20">
-  <img src="https://img.shields.io/badge/TypeScript-5.5-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript 5.5">
+  <a href="https://github.com/lidless-labs/n8n-ops-mcp/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/lidless-labs/n8n-ops-mcp/ci.yml?branch=main&style=for-the-badge&label=ci" alt="CI status"></a>
+  <a href="https://github.com/lidless-labs/n8n-ops-mcp/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/n8n-ops-mcp?style=for-the-badge" alt="license"></a>
   <img src="https://img.shields.io/badge/MCP-compatible-2563eb?style=for-the-badge" alt="MCP compatible">
-  <img src="https://img.shields.io/badge/OpenClaw-plugin-ef4444?style=for-the-badge" alt="OpenClaw plugin">
-  <img src="https://img.shields.io/badge/n8n-ops-ff6d5a?style=for-the-badge" alt="n8n ops">
-  <img src="https://img.shields.io/npm/l/n8n-ops-mcp?style=for-the-badge" alt="license">
+  <img src="https://img.shields.io/badge/Node.js-%3E%3D20-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js >=20">
 </p>
 
-Ops-focused n8n tools for any MCP-compatible client. List, inspect, trigger, validate, manage tags, run security audits, and safely edit n8n workflows - with auto-backup and confirm gates on destructive writes.
+<p align="center">
+  <a href="https://lidless.dev/n8n-ops-mcp"><strong>Website &amp; docs &rarr; lidless.dev/n8n-ops-mcp</strong></a>
+</p>
 
-Built for [OpenClaw](https://github.com/openclaw/openclaw) as a first-class plugin, exposed as an MCP server for everyone else. Works with Claude Desktop, Claude Code, Codex CLI, Hermes Agent, Cursor, Windsurf, or any other MCP host. No hard dependency on a specific model or agent harness.
+**n8n-ops-mcp is an ops-focused [Model Context Protocol](https://modelcontextprotocol.io) server for [n8n](https://n8n.io) workflow automation.** It lets an AI client list, inspect, trigger, validate, and audit your n8n workflows and executions over the n8n Public API, so you can ask "what broke in my n8n today?" and act on the answer without leaving your client. Unlike catalog/docs MCP servers that index n8n's node library for building flows, this one is built for operating the flows you already run: triage failed executions, find drift, scan for security risks, and edit workflows behind explicit write gates.
 
-## Why
+Built for [OpenClaw](https://github.com/openclaw/openclaw) as a first-class plugin, exposed as an MCP server for everyone else. Works with Claude Desktop, Claude Code, Codex CLI, Cursor, Windsurf, or any other MCP host. No hard dependency on a specific model or agent harness.
 
-Your agent has no native awareness of your n8n footprint. With this package, it can answer "what's broken in my n8n?", trigger workflows from chat, or clean up old executions without you leaving your client.
+## What it does
 
-For a catalog/docs tool that indexes n8n's node library, see [n8n-mcp](https://www.npmjs.com/package/n8n-mcp). This one is ops-focused - list, trigger, validate, edit.
+n8n-ops-mcp connects an AI agent to a running n8n instance for **workflow automation ops**: it surfaces your n8n workflows, executions, schedules, webhooks, tags, and credentials over the n8n Public API and exposes them as MCP tools. Your agent gets native awareness of your n8n footprint, so it can answer "what's broken in my n8n?", trigger a workflow from chat, audit for security risks, or clean up old executions, all without you leaving your client.
+
+Read tools are always available. Write tools (create, save, archive, delete, trigger, retry, tag CRUD, pin data) are hidden unless `N8N_ENABLE_EDIT=true`, and credential writes sit behind a second gate. Destructive operations are confirm-gated and snapshot to a backup directory first. See the [Security model](#security-model).
+
+## Try it: MCP client config
+
+Drop this into your MCP client config (Claude Desktop shown). The binary runs straight from npm via `npx`, so there is nothing to install first:
+
+```json
+{
+  "mcpServers": {
+    "n8n": {
+      "command": "npx",
+      "args": ["-y", "n8n-ops-mcp"],
+      "env": {
+        "N8N_BASE_URL": "https://n8n.example.com",
+        "N8N_API_KEY": "your-n8n-api-key"
+      }
+    }
+  }
+}
+```
+
+Generate the API key in n8n under **Settings &rarr; API**. Point `N8N_BASE_URL` at your n8n instance. That is the whole read-only setup. To unlock write tools, add `"N8N_ENABLE_EDIT": "true"` to `env`.
+
+Then ask your agent:
+
+> What n8n workflows broke today?
+
+It calls `n8n_list_executions` with `status=error`, then `n8n_get_execution` on the failing run for the per-node log and raw error.
 
 ## Tools
+
+40 tools across read-only ops, the workflow + execution lifecycle, tags, and credentials. Write tools (marked) are hidden unless `N8N_ENABLE_EDIT=true`; credential writes (marked ✓✓) need a second gate.
 
 | Tool | Purpose | Write |
 |---|---|---|
@@ -41,7 +72,7 @@ For a catalog/docs tool that indexes n8n's node library, see [n8n-mcp](https://w
 | `n8n_validate_workflow` | Static checks: deprecated nodes, legacy Code-node API, orphans | |
 | `n8n_diff_workflow` | Compare a workflow against a snapshot file or inline object - semantic diff (added/removed/modified nodes with field paths) | |
 | `n8n_list_schedules` | List every schedule trigger across workflows with human-readable descriptions ("daily at 03:00", "cron: 0 */6 * * *") | |
-| `n8n_audit_browser_bridge_usage` | Find every workflow that calls the [`browser-bridge`](https://github.com/solomonneas/browser-bridge) CLI (Execute Command, Code, SSH nodes) | |
+| `n8n_audit_browser_bridge_usage` | Find every workflow that calls the [`browser-bridge`](https://github.com/lidless-labs/browser-bridge) CLI (Execute Command, Code, SSH nodes) | |
 | `n8n_scaffold_browser_bridge_node` | Generate a ready-to-paste n8n node that calls a `browser-bridge <platform> <action>` (no API call) | |
 | `n8n_run_audit` | Run n8n's built-in security audit (credentials, database, nodes, filesystem, instance) | |
 | `n8n_find_workflows_using_node_type` | Find every workflow using a given node type (e.g. `n8n-nodes-base.slack`), with `exact` or `contains` match | |
@@ -96,9 +127,9 @@ Write tools are hidden unless `N8N_ENABLE_EDIT=true`.
 
 **`n8n_diff_workflow`** - compare a workflow's current state against a snapshot. Pass `id` plus exactly one of `snapshotPath` or `snapshot` (inline object). `snapshotPath` is **confined to the configured `backupDir`** (default `~/.n8n-backups`): it may be given relative to that directory or as an absolute path inside it, but any path that resolves outside `backupDir` (including `..` traversal) is rejected before the file is read. This keeps the tool from being used as an arbitrary file-read primitive even though it is available without `enableEdit`. Snapshot accepts both shapes: the flat backup written by `n8n_save_workflow` / `n8n_delete_workflow`, and the nested `n8n_get_workflow(includeDefinition=true)` shape (graph data under `definition`). Returns `summary` (counts: added/removed/modified/nameChanged/connectionsChanged/settingsChanged) plus `diff` with per-node `fieldsChanged` paths (e.g. `parameters.command`, `parameters.url`, `disabled`). Node matching is two-pass: id first, then name fallback for any unmatched nodes - handles legacy/hand-edited snapshots. Cosmetic changes (`position`, `webhookId`) are suppressed by default; pass `ignoreCosmetic: false` to surface them. Per-node detail is capped at `maxModifiedDetails` (default 50, max 500); `summary.nodesModified` counter is uncapped and `diff.nodesModifiedTruncated: true` flags when detail was clipped. Read-only.
 
-**`n8n_audit_browser_bridge_usage`** - scans every workflow for nodes that invoke the `browser-bridge` CLI. Inspects `command` (Execute Command + SSH nodes) and `jsCode` / `pythonCode` / `functionCode` (Code + legacy Function nodes). Heuristic: `\bbrowser-bridge\.[cm]?js` followed by two kebab-slug args; the bare bin form is intentionally not detected to avoid false positives from path mentions like `cd /opt/browser-bridge`. Returns one finding per `(workflowId, nodeName, platform, action)` plus a `summary` of platform×action counts. Optional `platform`, `action`, `activeOnly` (default false), `includeArchived` (default false), `maxWorkflows` (default 250, max 1000), `concurrency` (default 3, max 8). Read-only. Pairs with `n8n_scaffold_browser_bridge_node` when you need to add another call. Companion repo: [browser-bridge](https://github.com/solomonneas/browser-bridge).
+**`n8n_audit_browser_bridge_usage`** - scans every workflow for nodes that invoke the `browser-bridge` CLI. Inspects `command` (Execute Command + SSH nodes) and `jsCode` / `pythonCode` / `functionCode` (Code + legacy Function nodes). Heuristic: `\bbrowser-bridge\.[cm]?js` followed by two kebab-slug args; the bare bin form is intentionally not detected to avoid false positives from path mentions like `cd /opt/browser-bridge`. Returns one finding per `(workflowId, nodeName, platform, action)` plus a `summary` of platform×action counts. Optional `platform`, `action`, `activeOnly` (default false), `includeArchived` (default false), `maxWorkflows` (default 250, max 1000), `concurrency` (default 3, max 8). Read-only. Pairs with `n8n_scaffold_browser_bridge_node` when you need to add another call. Companion repo: [browser-bridge](https://github.com/lidless-labs/browser-bridge).
 
-**`n8n_scaffold_browser_bridge_node`** - pure local generator (no n8n API call). Given `platform`, `action`, optional `input` JSON, and `mode: "code-node" | "execute-command"` (default `code-node`), emits a ready-to-paste n8n node JSON that mirrors `browser-bridge`'s `docs/n8n-usage.md` patterns. The Code node uses `spawnSync` with stdin JSON and surfaces `payload.exitCode` + `stderr` so downstream nodes can branch on `ok`. The Execute Command node uses a quoted `<<'JSON'` heredoc so the input passes through unmangled. Optional `bridgeDir` (default `/home/user/.openclaw/workspace/pipeline/work/browser-bridge`), `nodeName`, `position`. Platform/action are validated as kebab slugs - keeps them safe to interpolate into the shell command. Warns when `execute-command` is used with non-empty `input` (heredoc bakes the JSON in; no per-item upstream wiring).
+**`n8n_scaffold_browser_bridge_node`** - pure local generator (no n8n API call). Given `platform`, `action`, optional `input` JSON, and `mode: "code-node" | "execute-command"` (default `code-node`), emits a ready-to-paste n8n node JSON that mirrors `browser-bridge`'s `docs/n8n-usage.md` patterns. The Code node uses `spawnSync` with stdin JSON and surfaces `payload.exitCode` + `stderr` so downstream nodes can branch on `ok`. The Execute Command node uses a quoted `<<'JSON'` heredoc so the input passes through unmangled. Optional `bridgeDir`, `nodeName`, `position`. Platform/action are validated as kebab slugs - keeps them safe to interpolate into the shell command. Warns when `execute-command` is used with non-empty `input` (heredoc bakes the JSON in; no per-item upstream wiring).
 
 **`n8n_trigger`** - **write tool** (hidden unless `enableEdit`); requires `confirm: true`. Triggering runs the workflow's nodes (Code / Execute Command / HTTP, etc.) and POSTs to webhooks, all of which can have arbitrary real-world side effects, so it lives behind the same edit gate as the other write tools and refuses without `confirm: true`. `webhookPath` is validated client-side: it must resolve to a path under `/webhook`, `/webhook-test`, or `/form`, with no `..` traversal or scheme-relative `//host` form, so a confused agent cannot redirect the call off the base URL. Two modes:
 - `mode: "webhook"` + `webhookPath` - POST (or GET/PUT/DELETE) to the configured base URL + path, with an optional JSON `payload`. This is the reliable path.
@@ -160,6 +191,22 @@ Write tools are hidden unless `N8N_ENABLE_EDIT=true`.
 
 </details>
 
+## Why not the bigger n8n MCP projects?
+
+n8n-ops-mcp is deliberately narrow. It is for **operating** the n8n you already run, not for authoring new flows from a node catalog.
+
+- For a catalog/docs tool that indexes n8n's node library so an agent can scaffold new workflows from node metadata, see [n8n-mcp](https://www.npmjs.com/package/n8n-mcp). That is the right tool when you want the agent to know about every node type and its parameters.
+- n8n-ops-mcp is the right tool when you want the agent to answer "what's broken, what changed, what's risky, what's scheduled" against your live instance and to act on it: triage failed executions, diff against backups, scan for security and credential blast radius, and edit workflows behind explicit, snapshotted write gates.
+
+The two are complementary. One helps build; this one helps run.
+
+## What n8n-ops-mcp is not
+
+- **Not a node-catalog or workflow-authoring assistant.** It does not index n8n's node library or suggest node parameters. Use [n8n-mcp](https://www.npmjs.com/package/n8n-mcp) for that.
+- **Not a replacement for the n8n UI or its REST API.** It is a thin, opinionated MCP layer over the n8n Public API, focused on ops questions and safe writes.
+- **Not a hosted service.** No daemon, no telemetry. It runs as a local stdio process (or an in-process OpenClaw plugin) and talks only to the n8n instance you configure.
+- **Not a credential exfiltration path.** Credential reads return metadata only; credential writes are double-gated and `data` is stripped from every response branch. See the [Security model](#security-model).
+
 ## Security model
 
 Two flags gate write access, with deliberately different blast radii:
@@ -183,13 +230,15 @@ Defense-in-depth on `data`:
 npm install -g n8n-ops-mcp
 ```
 
+Or run it on demand via `npx -y n8n-ops-mcp` (no global install needed), which is what the MCP client config above does.
+
 ## Configuration
 
 Generate an API key in n8n under **Settings → API**, then set these env vars in your MCP client config:
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `N8N_BASE_URL` | yes | - | n8n base URL, e.g. `http://localhost:5678` |
+| `N8N_BASE_URL` | yes | - | n8n base URL, e.g. `https://n8n.example.com` |
 | `N8N_API_KEY` | yes | - | n8n Public API key (`X-N8N-API-KEY`) |
 | `N8N_ENABLE_EDIT` | no | `false` | Expose write tools |
 | `N8N_ENABLE_CREDENTIALS_WRITE` | no | `false` | Second gate (on top of `N8N_ENABLE_EDIT`) for `n8n_create_credential` and `n8n_delete_credential`. See [Security model](#security-model). |
@@ -205,9 +254,10 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 {
   "mcpServers": {
     "n8n": {
-      "command": "n8n-ops-mcp",
+      "command": "npx",
+      "args": ["-y", "n8n-ops-mcp"],
       "env": {
-        "N8N_BASE_URL": "http://localhost:5678",
+        "N8N_BASE_URL": "https://n8n.example.com",
         "N8N_API_KEY": "your-api-key-here"
       }
     }
@@ -219,9 +269,9 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 
 ```bash
 claude mcp add n8n \
-  --env N8N_BASE_URL=http://localhost:5678 \
+  --env N8N_BASE_URL=https://n8n.example.com \
   --env N8N_API_KEY=your-api-key-here \
-  -- n8n-ops-mcp
+  -- npx -y n8n-ops-mcp
 ```
 
 Add `--scope user` to make it available from any directory instead of only the current project.
@@ -230,16 +280,16 @@ Add `--scope user` to make it available from any directory instead of only the c
 
 ```bash
 codex mcp add n8n \
-  --env N8N_BASE_URL=http://localhost:5678 \
+  --env N8N_BASE_URL=https://n8n.example.com \
   --env N8N_API_KEY=your-api-key-here \
-  -- n8n-ops-mcp
+  -- npx -y n8n-ops-mcp
 ```
 
 Writes the entry to `~/.codex/config.toml` under `[mcp_servers.n8n]`. Verify with `codex mcp list`.
 
 ### Cursor / Windsurf / other MCP hosts
 
-Any MCP-compatible client that accepts a stdio command + env will work. Point it at the `n8n-ops-mcp` binary with `N8N_BASE_URL` and `N8N_API_KEY` in the environment.
+Any MCP-compatible client that accepts a stdio command + env will work. Point it at `npx -y n8n-ops-mcp` (or the globally installed `n8n-ops-mcp` binary) with `N8N_BASE_URL` and `N8N_API_KEY` in the environment.
 
 <details>
 <summary><b>Hermes Agent</b></summary>
@@ -249,9 +299,10 @@ Any MCP-compatible client that accepts a stdio command + env will work. Point it
 ```yaml
 mcp_servers:
   n8n:
-    command: "n8n-ops-mcp"
+    command: "npx"
+    args: ["-y", "n8n-ops-mcp"]
     env:
-      N8N_BASE_URL: "http://localhost:5678"
+      N8N_BASE_URL: "https://n8n.example.com"
       N8N_API_KEY: "your-api-key-here"
 ```
 
@@ -280,7 +331,7 @@ Add the config block to `~/.openclaw/openclaw.json`:
       "n8n": {
         "enabled": true,
         "config": {
-          "baseUrl": "http://your-n8n-host:5678",
+          "baseUrl": "https://n8n.example.com",
           "enableEdit": false
         }
       }
@@ -293,7 +344,7 @@ Put the API key in your OpenClaw workspace env:
 
 ```bash
 # ~/.openclaw/workspace/.env
-N8N_API_KEY=eyJhbGciOi...
+N8N_API_KEY=your-api-key-here
 ```
 
 Restart the gateway:
@@ -320,7 +371,7 @@ If you want to point OpenClaw at a local clone instead of the registry:
       "n8n": {
         "enabled": true,
         "config": {
-          "baseUrl": "http://your-n8n-host:5678",
+          "baseUrl": "https://n8n.example.com",
           "enableEdit": false
         }
       }
@@ -353,21 +404,17 @@ Calls `n8n_list_schedules`, then filters the result for any schedule whose descr
 
 Calls `n8n_diff_workflow` with `id` and `snapshotPath` pointing to the backup file. Returns added/removed/modified nodes with parameter-level field paths.
 
-> Where am I calling Linktree sync from?
-
-Calls `n8n_audit_browser_bridge_usage` with `platform: "linktree"` to list every node (across all workflows) that invokes `browser-bridge linktree <action>`.
-
-> Add a CoderLegion `scan-comments` step to a new workflow
-
-Calls `n8n_scaffold_browser_bridge_node` with `platform: "coderlegion"`, `action: "scan-comments"`, `input: {limit: 5}` to get a Code node JSON, then pastes it into n8n.
-
-> Pin a sample browser-bridge response on the "BB call" node so I can iterate on downstream parsing without re-spawning the browser *(requires `N8N_ENABLE_EDIT=true`)*
-
-Calls `n8n_get_execution` to grab the most recent successful output of the node, then `n8n_pin_node_data` with `nodeName: "BB call"`, `data: <captured items>`, `confirm: true`. Clear later via `n8n_unpin_node_data`.
-
 > Audit my workflows for deprecated Code-node API usage
 
 Calls `n8n_list_workflows` then `n8n_validate_workflow` per id, filters for `code-node-old-node-ref` and `code-node-items-global` warnings.
+
+> Which workflows are flaky this week?
+
+Calls `n8n_execution_stats` with `sinceHours: 168`, then sorts by `failureRate`.
+
+> I'm rotating Slack credentials - where do I need to update?
+
+Calls `n8n_find_workflows_using_credential` with the credential id to enumerate the blast radius before you touch anything.
 
 > Deactivate the "experimental-bot" workflow *(requires `N8N_ENABLE_EDIT=true`)*
 
@@ -376,10 +423,6 @@ Calls `n8n_list_workflows` with a name filter, then `n8n_deactivate` with `confi
 > Kill the execution stuck on ECONNREFUSED *(requires `N8N_ENABLE_EDIT=true`)*
 
 Calls `n8n_search_executions` with `query: "ECONNREFUSED"`, then `n8n_cancel_execution` on the match.
-
-> Retry yesterday's failed "nightly intel" run against the current workflow *(requires `N8N_ENABLE_EDIT=true`)*
-
-Calls `n8n_search_executions` to find the failed id, then `n8n_retry_execution` with `loadWorkflow: true`.
 
 > Purge the noisy test-run execution logs from last week *(requires `N8N_ENABLE_EDIT=true`)*
 
@@ -392,14 +435,6 @@ Calls `n8n_list_workflows` with a name filter, then `n8n_archive_workflow` with 
 > Delete the abandoned "poc-scraper" workflow - it's been dead for months *(requires `N8N_ENABLE_EDIT=true`)*
 
 Calls `n8n_list_workflows` to find the id, then `n8n_delete_workflow` with `confirm: true`. A snapshot lands in `backupDir` first; restore is one-call via `n8n_create_workflow` with the snapshot. Prefer `n8n_archive_workflow` if you want to preserve the original id.
-
-> Restore the workflow I accidentally deleted yesterday - backup is at `~/.n8n-backups/wf-42-DELETED-2026-04-22_15-00-00.json` *(requires `N8N_ENABLE_EDIT=true`)*
-
-Reads the backup file, calls `n8n_create_workflow` with `definition=<backup contents>` and `confirm: true`. Read-only fields are stripped automatically; the restored workflow gets a new id and starts inactive. Call `n8n_activate` with `confirm: true` on the new id to re-enable triggers.
-
-> Clone workflow "intel-nightly" to "intel-nightly-staging" for testing *(requires `N8N_ENABLE_EDIT=true`)*
-
-Calls `n8n_get_workflow` with `includeDefinition=true`, changes `name` to "intel-nightly-staging" in the definition, then `n8n_create_workflow` with `confirm: true`. The new workflow is a full copy, inactive, with a fresh id.
 
 ## Development
 
@@ -415,11 +450,15 @@ npm start         # node dist/mcp-server.js (post-build)
 Or install from source:
 
 ```bash
-git clone https://github.com/solomonneas/n8n-ops-mcp.git
+git clone https://github.com/lidless-labs/n8n-ops-mcp.git
 cd n8n-ops-mcp
 npm install
 npm run build
 ```
+
+## Contributing
+
+Patches welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md) for what lands easily, [SECURITY.md](./SECURITY.md) for how to report a vulnerability, and the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## Changelog
 
@@ -427,4 +466,4 @@ See [CHANGELOG.md](./CHANGELOG.md) for the full version history.
 
 ## License
 
-MIT
+MIT. See [LICENSE](./LICENSE).

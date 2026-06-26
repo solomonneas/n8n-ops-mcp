@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest a new tool, a new flag, or an improvement to an existing one.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What ops question or workflow does this solve?
+      description: Describe the n8n operations problem first, not the implementation. What do you want to ask your agent that you cannot today?
+      placeholder: |
+        I want to ask "which workflows haven't run successfully in 7 days?" but no existing tool answers it.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed tool or change
+      description: A tool name, the inputs/outputs you imagine, and which n8n Public API endpoint(s) it would use (if any).
+      placeholder: |
+        n8n_stale_workflows - walks workflows + recent executions and flags any with no success in `sinceDays`.
+    validations:
+      required: true
+  - type: dropdown
+    id: write
+    attributes:
+      label: Does this mutate the n8n instance?
+      description: Write tools sit behind `enableEdit` (credential writes behind a second gate) and need a conversation first - see CONTRIBUTING.md.
+      options:
+        - "No - read-only"
+        - "Yes - it creates, edits, triggers, or deletes something"
+        - "Not sure"
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Can today's tools compose to do this? Is there a better-fit project (e.g. n8n-mcp for node-catalog/authoring work)?
+    validations:
+      required: false
