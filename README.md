@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/n8n-ops-mcp-banner.jpg" alt="n8n-ops-mcp banner">
+  <img src="docs/assets/n8n-ops-mcp-banner.jpg" alt="n8n-ops-mcp banner" width="900">
 </p>
 
 <h1 align="center">n8n-ops-mcp</h1>
@@ -9,15 +9,14 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/n8n-ops-mcp"><img src="https://img.shields.io/npm/v/n8n-ops-mcp?style=for-the-badge&logo=npm&logoColor=white" alt="npm version"></a>
-  <a href="https://github.com/lidless-labs/n8n-ops-mcp/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/lidless-labs/n8n-ops-mcp/ci.yml?branch=main&style=for-the-badge&label=ci" alt="CI status"></a>
-  <a href="https://github.com/lidless-labs/n8n-ops-mcp/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/n8n-ops-mcp?style=for-the-badge" alt="license"></a>
-  <img src="https://img.shields.io/badge/MCP-compatible-2563eb?style=for-the-badge" alt="MCP compatible">
-  <img src="https://img.shields.io/badge/Node.js-%3E%3D20-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js >=20">
+  <a href="https://lidless.dev/n8n-ops-mcp"><strong>Website &amp; docs &rarr; lidless.dev/n8n-ops-mcp</strong></a>
 </p>
 
 <p align="center">
-  <a href="https://lidless.dev/n8n-ops-mcp"><strong>Website &amp; docs &rarr; lidless.dev/n8n-ops-mcp</strong></a>
+  <img src="https://img.shields.io/npm/v/n8n-ops-mcp?style=for-the-badge&logo=npm&label=npm" alt="npm version">
+  <img src="https://img.shields.io/github/actions/workflow/status/lidless-labs/n8n-ops-mcp/ci.yml?branch=main&style=for-the-badge&label=ci" alt="ci">
+  <img src="https://img.shields.io/badge/MCP-server-8A2BE2?style=for-the-badge" alt="MCP server">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="license">
 </p>
 
 **n8n-ops-mcp is an ops-focused [Model Context Protocol](https://modelcontextprotocol.io) server for [n8n](https://n8n.io) workflow automation.** It lets an AI client list, inspect, trigger, validate, and audit your n8n workflows and executions over the n8n Public API, so you can ask "what broke in my n8n today?" and act on the answer without leaving your client. Unlike catalog/docs MCP servers that index n8n's node library for building flows, this one is built for operating the flows you already run: triage failed executions, find drift, scan for security risks, and edit workflows behind explicit write gates.
@@ -29,6 +28,14 @@ Built for [OpenClaw](https://github.com/openclaw/openclaw) as a first-class plug
 n8n-ops-mcp connects an AI agent to a running n8n instance for **workflow automation ops**: it surfaces your n8n workflows, executions, schedules, webhooks, tags, and credentials over the n8n Public API and exposes them as MCP tools. Your agent gets native awareness of your n8n footprint, so it can answer "what's broken in my n8n?", trigger a workflow from chat, audit for security risks, or clean up old executions, all without you leaving your client.
 
 Read tools are always available. Write tools (create, save, archive, delete, trigger, retry, tag CRUD, pin data) are hidden unless `N8N_ENABLE_EDIT=true`, and credential writes sit behind a second gate. Destructive operations are confirm-gated and snapshot to a backup directory first. See the [Security model](#security-model).
+
+## Install
+
+```bash
+npm install -g n8n-ops-mcp
+```
+
+Or run it on demand via `npx -y n8n-ops-mcp` (no global install needed), which is what the MCP client config above does.
 
 ## Try it: MCP client config
 
@@ -191,47 +198,6 @@ Write tools are hidden unless `N8N_ENABLE_EDIT=true`.
 
 </details>
 
-## Why not the bigger n8n MCP projects?
-
-n8n-ops-mcp is deliberately narrow. It is for **operating** the n8n you already run, not for authoring new flows from a node catalog.
-
-- For a catalog/docs tool that indexes n8n's node library so an agent can scaffold new workflows from node metadata, see [n8n-mcp](https://www.npmjs.com/package/n8n-mcp). That is the right tool when you want the agent to know about every node type and its parameters.
-- n8n-ops-mcp is the right tool when you want the agent to answer "what's broken, what changed, what's risky, what's scheduled" against your live instance and to act on it: triage failed executions, diff against backups, scan for security and credential blast radius, and edit workflows behind explicit, snapshotted write gates.
-
-The two are complementary. One helps build; this one helps run.
-
-## What n8n-ops-mcp is not
-
-- **Not a node-catalog or workflow-authoring assistant.** It does not index n8n's node library or suggest node parameters. Use [n8n-mcp](https://www.npmjs.com/package/n8n-mcp) for that.
-- **Not a replacement for the n8n UI or its REST API.** It is a thin, opinionated MCP layer over the n8n Public API, focused on ops questions and safe writes.
-- **Not a hosted service.** No daemon, no telemetry. It runs as a local stdio process (or an in-process OpenClaw plugin) and talks only to the n8n instance you configure.
-- **Not a credential exfiltration path.** Credential reads return metadata only; credential writes are double-gated and `data` is stripped from every response branch. See the [Security model](#security-model).
-
-## Security model
-
-Two flags gate write access, with deliberately different blast radii:
-
-- **`enableEdit`** (default `false`) - exposes the workflow + execution lifecycle write tools (create/save/archive/delete workflows, activate/deactivate, **trigger**, cancel/retry/delete executions, pin/unpin node data, tag CRUD). `n8n_trigger` is gated here too: running a workflow executes arbitrary Code / Execute Command / HTTP nodes and POSTs to webhooks, so it is treated as a write. Mutating tools are confirm-gated (including `trigger`, `activate`, `deactivate`, `archive`, `create_workflow`, `create_tag`, and `set_workflow_tags`), and the destructive workflow ones snapshot to `backupDir` first. The read-only `n8n_diff_workflow` confines `snapshotPath` reads to `backupDir` so it cannot be turned into an arbitrary file-read primitive.
-- **`enableCredentialsWrite`** (default `false`) - **second gate**, on top of `enableEdit`, required to expose `n8n_create_credential` and `n8n_delete_credential`. An agent that has been overprovisioned with `enableEdit` cannot inject or destroy credentials without this separate, deliberate config change.
-
-Both flags must be true for credential writes to register. The credential **read** tools (`list-credentials`, `get-credential-schema`, `find-workflows-using-credential`) and the disabled-node scanner are always available regardless.
-
-Why credentials get a second gate:
-1. `create-credential` is the only tool in this package where agent input contains plaintext secrets. A prompt-injected or confused agent with `enableEdit` shouldn't be able to inject credentials.
-2. `delete-credential` cascades - every workflow referencing the credential fails on its next run. The blast radius is wider than any single workflow operation.
-
-Defense-in-depth on `data`:
-- n8n's OpenAPI marks `data` as `writeOnly` - the API contract excludes it from every response. We trust but verify: **the tool layer strips `data` from every credential response before surfacing**, including success paths and the deleted-credential echo, so a future n8n regression can't leak secrets through us.
-- On `create-credential` errors, the n8n response body (which can echo back fragments of submitted `data` on validation 400s) is replaced at the client layer with a status-only error message. The tool surfaces `status` + `path` only. Tests assert no portion of a forced-400 request body reaches the tool response.
-
-## Install
-
-```bash
-npm install -g n8n-ops-mcp
-```
-
-Or run it on demand via `npx -y n8n-ops-mcp` (no global install needed), which is what the MCP client config above does.
-
 ## Configuration
 
 Generate an API key in n8n under **Settings → API**, then set these env vars in your MCP client config:
@@ -382,6 +348,23 @@ If you want to point OpenClaw at a local clone instead of the registry:
 
 </details>
 
+## Security model
+
+Two flags gate write access, with deliberately different blast radii:
+
+- **`enableEdit`** (default `false`) - exposes the workflow + execution lifecycle write tools (create/save/archive/delete workflows, activate/deactivate, **trigger**, cancel/retry/delete executions, pin/unpin node data, tag CRUD). `n8n_trigger` is gated here too: running a workflow executes arbitrary Code / Execute Command / HTTP nodes and POSTs to webhooks, so it is treated as a write. Mutating tools are confirm-gated (including `trigger`, `activate`, `deactivate`, `archive`, `create_workflow`, `create_tag`, and `set_workflow_tags`), and the destructive workflow ones snapshot to `backupDir` first. The read-only `n8n_diff_workflow` confines `snapshotPath` reads to `backupDir` so it cannot be turned into an arbitrary file-read primitive.
+- **`enableCredentialsWrite`** (default `false`) - **second gate**, on top of `enableEdit`, required to expose `n8n_create_credential` and `n8n_delete_credential`. An agent that has been overprovisioned with `enableEdit` cannot inject or destroy credentials without this separate, deliberate config change.
+
+Both flags must be true for credential writes to register. The credential **read** tools (`list-credentials`, `get-credential-schema`, `find-workflows-using-credential`) and the disabled-node scanner are always available regardless.
+
+Why credentials get a second gate:
+1. `create-credential` is the only tool in this package where agent input contains plaintext secrets. A prompt-injected or confused agent with `enableEdit` shouldn't be able to inject credentials.
+2. `delete-credential` cascades - every workflow referencing the credential fails on its next run. The blast radius is wider than any single workflow operation.
+
+Defense-in-depth on `data`:
+- n8n's OpenAPI marks `data` as `writeOnly` - the API contract excludes it from every response. We trust but verify: **the tool layer strips `data` from every credential response before surfacing**, including success paths and the deleted-credential echo, so a future n8n regression can't leak secrets through us.
+- On `create-credential` errors, the n8n response body (which can echo back fragments of submitted `data` on validation 400s) is replaced at the client layer with a status-only error message. The tool surfaces `status` + `path` only. Tests assert no portion of a forced-400 request body reaches the tool response.
+
 ## Example prompts
 
 > What n8n workflows broke today?
@@ -435,6 +418,22 @@ Calls `n8n_list_workflows` with a name filter, then `n8n_archive_workflow` with 
 > Delete the abandoned "poc-scraper" workflow - it's been dead for months *(requires `N8N_ENABLE_EDIT=true`)*
 
 Calls `n8n_list_workflows` to find the id, then `n8n_delete_workflow` with `confirm: true`. A snapshot lands in `backupDir` first; restore is one-call via `n8n_create_workflow` with the snapshot. Prefer `n8n_archive_workflow` if you want to preserve the original id.
+
+## Why not the bigger n8n MCP projects?
+
+n8n-ops-mcp is deliberately narrow. It is for **operating** the n8n you already run, not for authoring new flows from a node catalog.
+
+- For a catalog/docs tool that indexes n8n's node library so an agent can scaffold new workflows from node metadata, see [n8n-mcp](https://www.npmjs.com/package/n8n-mcp). That is the right tool when you want the agent to know about every node type and its parameters.
+- n8n-ops-mcp is the right tool when you want the agent to answer "what's broken, what changed, what's risky, what's scheduled" against your live instance and to act on it: triage failed executions, diff against backups, scan for security and credential blast radius, and edit workflows behind explicit, snapshotted write gates.
+
+The two are complementary. One helps build; this one helps run.
+
+## What n8n-ops-mcp is not
+
+- **Not a node-catalog or workflow-authoring assistant.** It does not index n8n's node library or suggest node parameters. Use [n8n-mcp](https://www.npmjs.com/package/n8n-mcp) for that.
+- **Not a replacement for the n8n UI or its REST API.** It is a thin, opinionated MCP layer over the n8n Public API, focused on ops questions and safe writes.
+- **Not a hosted service.** No daemon, no telemetry. It runs as a local stdio process (or an in-process OpenClaw plugin) and talks only to the n8n instance you configure.
+- **Not a credential exfiltration path.** Credential reads return metadata only; credential writes are double-gated and `data` is stripped from every response branch. See the [Security model](#security-model).
 
 ## Development
 
