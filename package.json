@@ -26,7 +26,8 @@
     "node": ">=20.0.0"
   },
   "bin": {
-    "n8n-ops-mcp": "dist/mcp-server.js"
+    "n8n-ops": "dist/cli.js",
+    "n8n-ops-mcp": "dist/mcp-bin.js"
   },
   "main": "dist/mcp-server.js",
   "files": [
@@ -74,8 +75,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsup",
-    "start": "node dist/mcp-server.js",
+    "start": "node dist/mcp-bin.js",
+    "cli": "node dist/cli.js",
     "dev": "tsx mcp-server.ts",
+    "dev:cli": "tsx src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepublishOnly": "npm run typecheck && npm test && npm run build"

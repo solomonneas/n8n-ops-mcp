@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { serve } from "./mcp-server.ts";
 
 serve().catch((error: unknown) => {
