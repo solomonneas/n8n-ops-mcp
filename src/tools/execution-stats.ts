@@ -63,28 +63,25 @@ export interface PerWorkflowStats {
   lastSuccessAt: string | null;
 }
 
-export function createExecutionStatsTool(getClient: () => N8nClient) {
-  return {
-    name: "n8n_execution_stats",
-    label: "n8n: execution stats",
-    description:
-      "Aggregate execution stats over a recent window. Computes per-workflow counts (total/success/error/canceled/running/waiting), failure rate, avg + p95 runtime, last failure + last success timestamps. Composed read-only — paginates /executions and stops on the window boundary or `maxExecutions`. Useful for 'which workflows are flaky?' and 'what's running long?'. Pagination is best-effort: if `truncated: true`, increase `maxExecutions` or narrow `sinceHours`.",
-    parameters: Schema,
-    execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
-      const params = rawParams as {
-        workflowId?: string;
-        sinceHours?: number;
-        maxExecutions?: number;
-        pageSize?: number;
-      };
-      const sinceHours = params.sinceHours ?? DEFAULT_SINCE_HOURS;
-      const maxExecutions = params.maxExecutions ?? DEFAULT_MAX_EXECUTIONS;
-      const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
-      const cutoffMs = Date.now() - sinceHours * 60 * 60 * 1000;
-      const cutoff = new Date(cutoffMs).toISOString();
+export interface ExecutionStatsOptions {
+  workflowId?: string;
+  sinceHours?: number;
+  maxExecutions?: number;
+  pageSize?: number;
+}
 
-      const client = getClient();
+export async function executionStats(
+  client: N8nClient,
+  opts: ExecutionStatsOptions = {},
+): Promise<Record<string, unknown>> {
+  const sinceHours = opts.sinceHours ?? DEFAULT_SINCE_HOURS;
+  const maxExecutions = opts.maxExecutions ?? DEFAULT_MAX_EXECUTIONS;
+  const pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
+  const cutoffMs = Date.now() - sinceHours * 60 * 60 * 1000;
+  const cutoff = new Date(cutoffMs).toISOString();
 
+  const params = opts;
+  {
       // Best-effort name lookup. Falls back to null on failure.
       const workflowNames = new Map<string, string>();
       try {
@@ -268,7 +265,7 @@ export function createExecutionStatsTool(getClient: () => N8nClient) {
       const overallFailureRate =
         completed > 0 ? round4(totals.error / completed) : 0;
 
-      return jsonToolResult({
+      return {
         windowHours: sinceHours,
         windowSince: cutoff,
         windowUntil: new Date().toISOString(),
@@ -279,7 +276,21 @@ export function createExecutionStatsTool(getClient: () => N8nClient) {
         workflowCount: perWorkflow.length,
         totals: { ...totals, failureRate: overallFailureRate },
         perWorkflow,
-      });
+      };
+  }
+}
+
+export function createExecutionStatsTool(getClient: () => N8nClient) {
+  return {
+    name: "n8n_execution_stats",
+    label: "n8n: execution stats",
+    description:
+      "Aggregate execution stats over a recent window. Computes per-workflow counts (total/success/error/canceled/running/waiting), failure rate, avg + p95 runtime, last failure + last success timestamps. Composed read-only — paginates /executions and stops on the window boundary or `maxExecutions`. Useful for 'which workflows are flaky?' and 'what's running long?'. Pagination is best-effort: if `truncated: true`, increase `maxExecutions` or narrow `sinceHours`.",
+    parameters: Schema,
+    execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
+      return jsonToolResult(
+        await executionStats(getClient(), rawParams as ExecutionStatsOptions),
+      );
     },
   };
 }

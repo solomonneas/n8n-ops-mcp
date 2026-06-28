@@ -70,48 +70,43 @@ export interface NodeMatch {
   disabled: boolean;
 }
 
-export function createFindWorkflowsUsingNodeTypeTool(
-  getClient: () => N8nClient,
-) {
-  return {
-    name: "n8n_find_workflows_using_node_type",
-    label: "n8n: find workflows using node type",
-    description:
-      "Scan workflows and surface every node matching a given type (e.g. 'n8n-nodes-base.slack'). Returns one finding per matching node + a per-workflow summary so agents can answer 'where am I calling Slack?' or 'which workflows still use the legacy HTTP Request node?' without grepping the n8n DB. Read-only. Bounded-concurrency fan-out; per-workflow fetch errors land in `fetchErrors` instead of failing the whole scan.",
-    parameters: Schema,
-    execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
-      const params = rawParams as {
-        nodeType: string;
-        match?: "exact" | "contains";
-        activeOnly?: boolean;
-        includeArchived?: boolean;
-        includeDisabledNodes?: boolean;
-        maxWorkflows?: number;
-        concurrency?: number;
-      };
-      const client = getClient();
-      const target = params.nodeType.trim();
-      if (!target) {
-        // Defensive: with `match: "contains"`, an empty string would match
-        // every node and produce a useless dump. MCP schema enforces minLength:1
-        // but the runtime trim opens this gap.
-        return jsonToolResult({
-          ok: false,
-          reason: "empty_node_type",
-          error: "nodeType must be non-empty after trim",
-        });
-      }
-      const match = params.match ?? "exact";
-      const activeOnly = params.activeOnly === true;
-      const includeArchived = params.includeArchived === true;
-      const includeDisabled = params.includeDisabledNodes !== false;
-      const maxWorkflows = params.maxWorkflows ?? DEFAULT_MAX_WORKFLOWS;
-      const concurrency = Math.max(
-        1,
-        Math.min(8, params.concurrency ?? DEFAULT_CONCURRENCY),
-      );
-      const targetLower = target.toLowerCase();
+export interface FindWorkflowsUsingNodeTypeOptions {
+  nodeType: string;
+  match?: "exact" | "contains";
+  activeOnly?: boolean;
+  includeArchived?: boolean;
+  includeDisabledNodes?: boolean;
+  maxWorkflows?: number;
+  concurrency?: number;
+}
 
+export async function findWorkflowsUsingNodeType(
+  client: N8nClient,
+  opts: FindWorkflowsUsingNodeTypeOptions,
+): Promise<Record<string, unknown>> {
+  const target = opts.nodeType.trim();
+  if (!target) {
+    // Defensive: with `match: "contains"`, an empty string would match
+    // every node and produce a useless dump. MCP schema enforces minLength:1
+    // but the runtime trim opens this gap.
+    return {
+      ok: false,
+      reason: "empty_node_type",
+      error: "nodeType must be non-empty after trim",
+    };
+  }
+  const match = opts.match ?? "exact";
+  const activeOnly = opts.activeOnly === true;
+  const includeArchived = opts.includeArchived === true;
+  const includeDisabled = opts.includeDisabledNodes !== false;
+  const maxWorkflows = opts.maxWorkflows ?? DEFAULT_MAX_WORKFLOWS;
+  const concurrency = Math.max(
+    1,
+    Math.min(8, opts.concurrency ?? DEFAULT_CONCURRENCY),
+  );
+  const targetLower = target.toLowerCase();
+
+  {
       const summaries: Array<{ id: string; archived: boolean }> = [];
       let cursor: string | undefined;
       let truncated = false;
@@ -209,7 +204,7 @@ export function createFindWorkflowsUsingNodeTypeTool(
         }))
         .sort((a, b) => b.matchCount - a.matchCount);
 
-      return jsonToolResult({
+      return {
         target,
         match,
         scannedWorkflows: definitions.length,
@@ -220,7 +215,26 @@ export function createFindWorkflowsUsingNodeTypeTool(
         findingCount: findings.length,
         summary,
         findings,
-      });
+      };
+  }
+}
+
+export function createFindWorkflowsUsingNodeTypeTool(
+  getClient: () => N8nClient,
+) {
+  return {
+    name: "n8n_find_workflows_using_node_type",
+    label: "n8n: find workflows using node type",
+    description:
+      "Scan workflows and surface every node matching a given type (e.g. 'n8n-nodes-base.slack'). Returns one finding per matching node + a per-workflow summary so agents can answer 'where am I calling Slack?' or 'which workflows still use the legacy HTTP Request node?' without grepping the n8n DB. Read-only. Bounded-concurrency fan-out; per-workflow fetch errors land in `fetchErrors` instead of failing the whole scan.",
+    parameters: Schema,
+    execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
+      return jsonToolResult(
+        await findWorkflowsUsingNodeType(
+          getClient(),
+          rawParams as unknown as FindWorkflowsUsingNodeTypeOptions,
+        ),
+      );
     },
   };
 }

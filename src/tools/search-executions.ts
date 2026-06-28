@@ -67,6 +67,100 @@ const DEFAULT_LIMIT = 50;
 const DEFAULT_MAX_MATCHES = 20;
 const DEFAULT_SNIPPET_CHARS = 160;
 
+export interface SearchExecutionsOptions {
+  query: string;
+  workflowId?: string;
+  status?: string;
+  scope?: "error" | "all";
+  limit?: number;
+  maxMatches?: number;
+  snippetChars?: number;
+}
+
+export async function searchExecutions(
+  client: N8nClient,
+  opts: SearchExecutionsOptions,
+): Promise<Record<string, unknown>> {
+  const query = opts.query;
+  const needle = query.toLowerCase();
+  const scope = opts.scope ?? "error";
+  const limit = opts.limit ?? DEFAULT_LIMIT;
+  const maxMatches = opts.maxMatches ?? DEFAULT_MAX_MATCHES;
+  const snippetChars = opts.snippetChars ?? DEFAULT_SNIPPET_CHARS;
+  const status = opts.status ?? "error";
+
+  const [executions, workflowIndex] = await Promise.all([
+    client.listExecutions({
+      workflowId: opts.workflowId,
+      status,
+      limit,
+    }),
+    loadWorkflowNames(client),
+  ]);
+
+  const matches: Array<Record<string, unknown>> = [];
+  const skipped: Array<{ executionId: string; error: string }> = [];
+  let scannedCount = 0;
+  let truncated = false;
+
+  for (const summary of executions.data) {
+    scannedCount++;
+    let detail: N8nExecution;
+    try {
+      detail = await client.getExecution(String(summary.id), {
+        includeData: true,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      skipped.push({
+        executionId: String(summary.id),
+        error: client.redact(msg),
+      });
+      continue;
+    }
+
+    const hits = findHits(detail, needle, scope, snippetChars);
+    if (hits.length === 0) continue;
+
+    const workflowId = String(detail.workflowId ?? summary.workflowId ?? "");
+    const errorMessage = extractErrorMessage(detail);
+    matches.push({
+      executionId: String(detail.id),
+      workflowId,
+      workflowName:
+        detail.workflowData?.name ?? workflowIndex.get(workflowId) ?? null,
+      status: detail.status ?? (detail.finished ? "success" : "running"),
+      mode: detail.mode,
+      startedAt: detail.startedAt ?? null,
+      stoppedAt: detail.stoppedAt ?? null,
+      errorMessage: errorMessage ? client.redact(errorMessage) : null,
+      matchedIn: hits.map((h) => h.where),
+      snippets: hits.map((h) => ({
+        where: h.where,
+        text: client.redact(h.snippet),
+      })),
+    });
+
+    if (matches.length >= maxMatches) {
+      truncated = true;
+      break;
+    }
+  }
+
+  return {
+    query,
+    scope,
+    status,
+    scannedCount,
+    matchCount: matches.length,
+    skippedCount: skipped.length,
+    truncated,
+    matches,
+    skipped,
+    nextCursor: truncated ? null : executions.nextCursor ?? null,
+  };
+}
+
 export function createSearchExecutionsTool(getClient: () => N8nClient) {
   return {
     name: "n8n_search_executions",
@@ -75,94 +169,8 @@ export function createSearchExecutionsTool(getClient: () => N8nClient) {
       "Text-search recent n8n executions without paging through them one by one. Fetches each candidate with includeData=true, then greps the error payload (scope='error', default) or the full per-node run log (scope='all'). Returns matched executions with workflow context and a snippet around each hit. Snippets are raw run data with the API key redacted — with scope='all' they may still contain credentials or payload data from node outputs, so treat as sensitive.",
     parameters: Schema,
     execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
-      const params = rawParams as {
-        query: string;
-        workflowId?: string;
-        status?: string;
-        scope?: "error" | "all";
-        limit?: number;
-        maxMatches?: number;
-        snippetChars?: number;
-      };
-      const client = getClient();
-      const query = params.query;
-      const needle = query.toLowerCase();
-      const scope = params.scope ?? "error";
-      const limit = params.limit ?? DEFAULT_LIMIT;
-      const maxMatches = params.maxMatches ?? DEFAULT_MAX_MATCHES;
-      const snippetChars = params.snippetChars ?? DEFAULT_SNIPPET_CHARS;
-      const status = params.status ?? "error";
-
-      const [executions, workflowIndex] = await Promise.all([
-        client.listExecutions({
-          workflowId: params.workflowId,
-          status,
-          limit,
-        }),
-        loadWorkflowNames(client),
-      ]);
-
-      const matches: Array<Record<string, unknown>> = [];
-      const skipped: Array<{ executionId: string; error: string }> = [];
-      let scannedCount = 0;
-      let truncated = false;
-
-      for (const summary of executions.data) {
-        scannedCount++;
-        let detail: N8nExecution;
-        try {
-          detail = await client.getExecution(String(summary.id), {
-            includeData: true,
-          });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          skipped.push({
-            executionId: String(summary.id),
-            error: client.redact(msg),
-          });
-          continue;
-        }
-
-        const hits = findHits(detail, needle, scope, snippetChars);
-        if (hits.length === 0) continue;
-
-        const workflowId = String(detail.workflowId ?? summary.workflowId ?? "");
-        const errorMessage = extractErrorMessage(detail);
-        matches.push({
-          executionId: String(detail.id),
-          workflowId,
-          workflowName:
-            detail.workflowData?.name ?? workflowIndex.get(workflowId) ?? null,
-          status: detail.status ?? (detail.finished ? "success" : "running"),
-          mode: detail.mode,
-          startedAt: detail.startedAt ?? null,
-          stoppedAt: detail.stoppedAt ?? null,
-          errorMessage: errorMessage ? client.redact(errorMessage) : null,
-          matchedIn: hits.map((h) => h.where),
-          snippets: hits.map((h) => ({
-            where: h.where,
-            text: client.redact(h.snippet),
-          })),
-        });
-
-        if (matches.length >= maxMatches) {
-          truncated = true;
-          break;
-        }
-      }
-
-      return jsonToolResult({
-        query,
-        scope,
-        status,
-        scannedCount,
-        matchCount: matches.length,
-        skippedCount: skipped.length,
-        truncated,
-        matches,
-        skipped,
-        nextCursor: truncated ? null : executions.nextCursor ?? null,
-      });
+      const params = rawParams as unknown as SearchExecutionsOptions;
+      return jsonToolResult(await searchExecutions(getClient(), params));
     },
   };
 }

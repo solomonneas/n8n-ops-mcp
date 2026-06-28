@@ -49,29 +49,26 @@ export interface DisabledNodeFinding {
   nodeType: string;
 }
 
-export function createCheckDisabledNodesTool(getClient: () => N8nClient) {
-  return {
-    name: "n8n_check_disabled_nodes",
-    label: "n8n: check disabled nodes",
-    description:
-      "Scan workflows and surface every node with `disabled: true`. One finding per (workflowId, nodeName, nodeType) plus a per-workflow count. Read-only. Disabled nodes are common drift signals — frozen mid-debug, forgotten cleanup — and the n8n UI doesn't surface them in any list view. Bounded-concurrency fan-out; per-workflow fetch errors land in `fetchErrors` instead of failing the scan.",
-    parameters: Schema,
-    execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
-      const params = rawParams as {
-        activeOnly?: boolean;
-        includeArchived?: boolean;
-        maxWorkflows?: number;
-        concurrency?: number;
-      };
-      const activeOnly = params.activeOnly === true;
-      const includeArchived = params.includeArchived === true;
-      const maxWorkflows = params.maxWorkflows ?? DEFAULT_MAX_WORKFLOWS;
-      const concurrency = Math.max(
-        1,
-        Math.min(8, params.concurrency ?? DEFAULT_CONCURRENCY),
-      );
-      const client = getClient();
+export interface CheckDisabledNodesOptions {
+  activeOnly?: boolean;
+  includeArchived?: boolean;
+  maxWorkflows?: number;
+  concurrency?: number;
+}
 
+export async function checkDisabledNodes(
+  client: N8nClient,
+  opts: CheckDisabledNodesOptions = {},
+): Promise<Record<string, unknown>> {
+  const activeOnly = opts.activeOnly === true;
+  const includeArchived = opts.includeArchived === true;
+  const maxWorkflows = opts.maxWorkflows ?? DEFAULT_MAX_WORKFLOWS;
+  const concurrency = Math.max(
+    1,
+    Math.min(8, opts.concurrency ?? DEFAULT_CONCURRENCY),
+  );
+
+  {
       const summaries: Array<{ id: string; archived: boolean }> = [];
       let cursor: string | undefined;
       let truncated = false;
@@ -165,7 +162,7 @@ export function createCheckDisabledNodesTool(getClient: () => N8nClient) {
         }))
         .sort((a, b) => b.disabledCount - a.disabledCount);
 
-      return jsonToolResult({
+      return {
         scannedWorkflows: definitions.length,
         requestedMaxWorkflows: maxWorkflows,
         truncated,
@@ -174,7 +171,24 @@ export function createCheckDisabledNodesTool(getClient: () => N8nClient) {
         findingCount: findings.length,
         summary,
         findings,
-      });
+      };
+  }
+}
+
+export function createCheckDisabledNodesTool(getClient: () => N8nClient) {
+  return {
+    name: "n8n_check_disabled_nodes",
+    label: "n8n: check disabled nodes",
+    description:
+      "Scan workflows and surface every node with `disabled: true`. One finding per (workflowId, nodeName, nodeType) plus a per-workflow count. Read-only. Disabled nodes are common drift signals — frozen mid-debug, forgotten cleanup — and the n8n UI doesn't surface them in any list view. Bounded-concurrency fan-out; per-workflow fetch errors land in `fetchErrors` instead of failing the scan.",
+    parameters: Schema,
+    execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
+      return jsonToolResult(
+        await checkDisabledNodes(
+          getClient(),
+          rawParams as CheckDisabledNodesOptions,
+        ),
+      );
     },
   };
 }

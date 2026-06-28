@@ -39,20 +39,18 @@ const Schema = Type.Object(
   { additionalProperties: false },
 );
 
-export function createRunAuditTool(getClient: () => N8nClient) {
-  return {
-    name: "n8n_run_audit",
-    label: "n8n: run security audit",
-    description:
-      "Generate n8n's built-in security audit via POST /audit. Returns one risk report per requested category: credentials (unused/abandoned), database (SQL injection-prone expressions), nodes (community/unofficial nodes), filesystem (host fs access), instance (insecure server settings). Each report has `risk`, `sections` (with title/description/recommendation/location). Read-only — n8n only inspects, never mutates. Requires the API user to be an instance admin or owner.",
-    parameters: Schema,
-    execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
-      const { categories, daysAbandonedWorkflow, includeDetails } = rawParams as {
-        categories?: Array<(typeof CATEGORIES)[number]>;
-        daysAbandonedWorkflow?: number;
-        includeDetails?: boolean;
-      };
-      const client = getClient();
+export interface RunAuditOptions {
+  categories?: Array<(typeof CATEGORIES)[number]>;
+  daysAbandonedWorkflow?: number;
+  includeDetails?: boolean;
+}
+
+export async function runAudit(
+  client: N8nClient,
+  opts: RunAuditOptions = {},
+): Promise<Record<string, unknown>> {
+  const { categories, daysAbandonedWorkflow, includeDetails } = opts;
+  {
       const audit = await client.runAudit({
         categories:
           categories && categories.length > 0 ? categories : undefined,
@@ -97,7 +95,7 @@ export function createRunAuditTool(getClient: () => N8nClient) {
       const shouldStrip = includeDetails !== true;
       const auditOut = shouldStrip ? stripLocations(audit) : audit;
 
-      return jsonToolResult({
+      return {
         ok: true,
         action: "audit",
         requestedCategories: categories ?? [...CATEGORIES],
@@ -107,7 +105,21 @@ export function createRunAuditTool(getClient: () => N8nClient) {
         totalLocations,
         reports,
         audit: auditOut,
-      });
+      };
+  }
+}
+
+export function createRunAuditTool(getClient: () => N8nClient) {
+  return {
+    name: "n8n_run_audit",
+    label: "n8n: run security audit",
+    description:
+      "Generate n8n's built-in security audit via POST /audit. Returns one risk report per requested category: credentials (unused/abandoned), database (SQL injection-prone expressions), nodes (community/unofficial nodes), filesystem (host fs access), instance (insecure server settings). Each report has `risk`, `sections` (with title/description/recommendation/location). Read-only — n8n only inspects, never mutates. Requires the API user to be an instance admin or owner.",
+    parameters: Schema,
+    execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
+      return jsonToolResult(
+        await runAudit(getClient(), rawParams as RunAuditOptions),
+      );
     },
   };
 }

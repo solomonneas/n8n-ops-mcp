@@ -55,6 +55,51 @@ export interface ScheduleEntry {
   raw: unknown;
 }
 
+export interface ListSchedulesOptions {
+  workflowId?: string;
+  activeOnly?: boolean;
+  limit?: number;
+}
+
+export async function listSchedules(
+  client: N8nClient,
+  opts: ListSchedulesOptions = {},
+): Promise<Record<string, unknown>> {
+  const activeOnly = opts.activeOnly !== false;
+
+  const workflows: N8nWorkflow[] = [];
+  if (opts.workflowId) {
+    workflows.push(await client.getWorkflow(opts.workflowId));
+  } else {
+    const list = await client.listWorkflows({
+      active: activeOnly ? true : undefined,
+      limit: opts.limit ?? 100,
+    });
+    const defs = await Promise.all(
+      list.data.map((w) => client.getWorkflow(w.id)),
+    );
+    workflows.push(...defs);
+  }
+
+  const schedules: ScheduleEntry[] = [];
+  for (const wf of workflows) {
+    if (activeOnly && !wf.active) continue;
+    if (!Array.isArray(wf.nodes)) continue;
+    for (const node of wf.nodes) {
+      for (const entry of extractSchedules(node, wf)) {
+        schedules.push(entry);
+      }
+    }
+  }
+
+  return {
+    scannedWorkflows: workflows.length,
+    activeOnly,
+    count: schedules.length,
+    schedules,
+  };
+}
+
 export function createListSchedulesTool(getClient: () => N8nClient) {
   return {
     name: "n8n_list_schedules",
@@ -63,45 +108,9 @@ export function createListSchedulesTool(getClient: () => N8nClient) {
       "Surface every schedule trigger across workflows so you can answer 'what's running at 3am?' without clicking through the n8n UI. Walks scheduleTrigger and legacy cron nodes, decodes their interval rules into human-readable strings (e.g. 'every 2 hours', 'daily at 03:00', 'cron: 0 */6 * * *'), and returns workflow context + the raw rule for further inspection. Read-only.",
     parameters: Schema,
     execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
-      const params = rawParams as {
-        workflowId?: string;
-        activeOnly?: boolean;
-        limit?: number;
-      };
-      const activeOnly = params.activeOnly !== false;
-      const client = getClient();
-
-      const workflows: N8nWorkflow[] = [];
-      if (params.workflowId) {
-        workflows.push(await client.getWorkflow(params.workflowId));
-      } else {
-        const list = await client.listWorkflows({
-          active: activeOnly ? true : undefined,
-          limit: params.limit ?? 100,
-        });
-        const defs = await Promise.all(
-          list.data.map((w) => client.getWorkflow(w.id)),
-        );
-        workflows.push(...defs);
-      }
-
-      const schedules: ScheduleEntry[] = [];
-      for (const wf of workflows) {
-        if (activeOnly && !wf.active) continue;
-        if (!Array.isArray(wf.nodes)) continue;
-        for (const node of wf.nodes) {
-          for (const entry of extractSchedules(node, wf)) {
-            schedules.push(entry);
-          }
-        }
-      }
-
-      return jsonToolResult({
-        scannedWorkflows: workflows.length,
-        activeOnly,
-        count: schedules.length,
-        schedules,
-      });
+      return jsonToolResult(
+        await listSchedules(getClient(), rawParams as ListSchedulesOptions),
+      );
     },
   };
 }

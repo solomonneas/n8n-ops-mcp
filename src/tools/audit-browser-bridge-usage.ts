@@ -85,33 +85,30 @@ export interface Finding {
   action: string;
 }
 
-export function createAuditBrowserBridgeUsageTool(getClient: () => N8nClient) {
-  return {
-    name: "n8n_audit_browser_bridge_usage",
-    label: "n8n: audit browser-bridge usage",
-    description:
-      "Scan every workflow for nodes that invoke the browser-bridge CLI (Execute Command, Code/Function, or SSH nodes). Returns one finding per (workflowId, nodeName, platform, action) so you can answer 'where am I calling Linktree sync from?' without grepping the n8n DB. Read-only. Heuristic: matches `browser-bridge[.js|.cjs] <platform> <action>` in command/jsCode strings, including spawn-array form.",
-    parameters: Schema,
-    execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
-      const params = rawParams as {
-        platform?: string;
-        action?: string;
-        activeOnly?: boolean;
-        includeArchived?: boolean;
-        maxWorkflows?: number;
-        concurrency?: number;
-      };
-      const client = getClient();
-      const platformFilter = params.platform?.toLowerCase();
-      const actionFilter = params.action?.toLowerCase();
-      const activeOnly = params.activeOnly === true;
-      const includeArchived = params.includeArchived === true;
-      const maxWorkflows = params.maxWorkflows ?? DEFAULT_MAX_WORKFLOWS;
-      const concurrency = Math.max(
-        1,
-        Math.min(8, params.concurrency ?? DEFAULT_CONCURRENCY),
-      );
+export interface AuditBrowserBridgeUsageOptions {
+  platform?: string;
+  action?: string;
+  activeOnly?: boolean;
+  includeArchived?: boolean;
+  maxWorkflows?: number;
+  concurrency?: number;
+}
 
+export async function auditBrowserBridgeUsage(
+  client: N8nClient,
+  opts: AuditBrowserBridgeUsageOptions = {},
+): Promise<Record<string, unknown>> {
+  const platformFilter = opts.platform?.toLowerCase();
+  const actionFilter = opts.action?.toLowerCase();
+  const activeOnly = opts.activeOnly === true;
+  const includeArchived = opts.includeArchived === true;
+  const maxWorkflows = opts.maxWorkflows ?? DEFAULT_MAX_WORKFLOWS;
+  const concurrency = Math.max(
+    1,
+    Math.min(8, opts.concurrency ?? DEFAULT_CONCURRENCY),
+  );
+
+  {
       // Page through summaries until cap or cursor exhausted.
       const summaries: Array<{ id: string; archived: boolean }> = [];
       let cursor: string | undefined;
@@ -193,7 +190,7 @@ export function createAuditBrowserBridgeUsageTool(getClient: () => N8nClient) {
         }))
         .sort((a, b) => a.platform.localeCompare(b.platform));
 
-      return jsonToolResult({
+      return {
         scannedWorkflows: definitions.length,
         requestedMaxWorkflows: maxWorkflows,
         truncated,
@@ -201,7 +198,24 @@ export function createAuditBrowserBridgeUsageTool(getClient: () => N8nClient) {
         findingCount: findings.length,
         findings,
         summary,
-      });
+      };
+  }
+}
+
+export function createAuditBrowserBridgeUsageTool(getClient: () => N8nClient) {
+  return {
+    name: "n8n_audit_browser_bridge_usage",
+    label: "n8n: audit browser-bridge usage",
+    description:
+      "Scan every workflow for nodes that invoke the browser-bridge CLI (Execute Command, Code/Function, or SSH nodes). Returns one finding per (workflowId, nodeName, platform, action) so you can answer 'where am I calling Linktree sync from?' without grepping the n8n DB. Read-only. Heuristic: matches `browser-bridge[.js|.cjs] <platform> <action>` in command/jsCode strings, including spawn-array form.",
+    parameters: Schema,
+    execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
+      return jsonToolResult(
+        await auditBrowserBridgeUsage(
+          getClient(),
+          rawParams as AuditBrowserBridgeUsageOptions,
+        ),
+      );
     },
   };
 }

@@ -64,55 +64,50 @@ export interface CredentialMatch {
   credentialName: string | null;
 }
 
-export function createFindWorkflowsUsingCredentialTool(
-  getClient: () => N8nClient,
-) {
-  return {
-    name: "n8n_find_workflows_using_credential",
-    label: "n8n: find workflows using credential",
-    description:
-      "Scan workflows and surface every node that references a given credential. Pass either `credentialId` (exact, preferred) or `credentialName` (case-insensitive substring fallback). Returns one finding per (workflowId, nodeName, credentialType) plus a per-workflow summary count. Read-only. Bounded-concurrency fan-out; per-workflow fetch errors land in `fetchErrors` instead of failing the whole scan. Pairs with n8n_run_audit and is the answer to 'I'm rotating <X> creds, where do I need to update?' before calling n8n_delete_credential.",
-    parameters: Schema,
-    execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
-      const params = rawParams as {
-        credentialId?: string;
-        credentialName?: string;
-        activeOnly?: boolean;
-        includeArchived?: boolean;
-        maxWorkflows?: number;
-        concurrency?: number;
-      };
-      const credentialId = params.credentialId?.trim();
-      const credentialName = params.credentialName?.trim();
-      if (!credentialId && !credentialName) {
-        return jsonToolResult({
-          ok: false,
-          action: "find_workflows_using_credential",
-          reason: "missing_target",
-          error: "exactly one of credentialId or credentialName is required",
-        });
-      }
-      if (credentialId && credentialName) {
-        // Schema doc says "exactly one"; refuse instead of silently
-        // preferring id, so callers don't think their name fallback ran.
-        return jsonToolResult({
-          ok: false,
-          action: "find_workflows_using_credential",
-          reason: "ambiguous_target",
-          error:
-            "pass exactly one of credentialId or credentialName — not both",
-        });
-      }
-      const nameLower = credentialName?.toLowerCase();
-      const activeOnly = params.activeOnly === true;
-      const includeArchived = params.includeArchived === true;
-      const maxWorkflows = params.maxWorkflows ?? DEFAULT_MAX_WORKFLOWS;
-      const concurrency = Math.max(
-        1,
-        Math.min(8, params.concurrency ?? DEFAULT_CONCURRENCY),
-      );
-      const client = getClient();
+export interface FindWorkflowsUsingCredentialOptions {
+  credentialId?: string;
+  credentialName?: string;
+  activeOnly?: boolean;
+  includeArchived?: boolean;
+  maxWorkflows?: number;
+  concurrency?: number;
+}
 
+export async function findWorkflowsUsingCredential(
+  client: N8nClient,
+  opts: FindWorkflowsUsingCredentialOptions,
+): Promise<Record<string, unknown>> {
+  const credentialId = opts.credentialId?.trim();
+  const credentialName = opts.credentialName?.trim();
+  if (!credentialId && !credentialName) {
+    return {
+      ok: false,
+      action: "find_workflows_using_credential",
+      reason: "missing_target",
+      error: "exactly one of credentialId or credentialName is required",
+    };
+  }
+  if (credentialId && credentialName) {
+    // Schema doc says "exactly one"; refuse instead of silently
+    // preferring id, so callers don't think their name fallback ran.
+    return {
+      ok: false,
+      action: "find_workflows_using_credential",
+      reason: "ambiguous_target",
+      error:
+        "pass exactly one of credentialId or credentialName — not both",
+    };
+  }
+  const nameLower = credentialName?.toLowerCase();
+  const activeOnly = opts.activeOnly === true;
+  const includeArchived = opts.includeArchived === true;
+  const maxWorkflows = opts.maxWorkflows ?? DEFAULT_MAX_WORKFLOWS;
+  const concurrency = Math.max(
+    1,
+    Math.min(8, opts.concurrency ?? DEFAULT_CONCURRENCY),
+  );
+
+  {
       const summaries: Array<{ id: string; archived: boolean }> = [];
       let cursor: string | undefined;
       let truncated = false;
@@ -224,7 +219,7 @@ export function createFindWorkflowsUsingCredentialTool(
         }))
         .sort((a, b) => b.matchCount - a.matchCount);
 
-      return jsonToolResult({
+      return {
         target: credentialId
           ? { kind: "id", value: credentialId }
           : { kind: "name", value: credentialName },
@@ -236,7 +231,26 @@ export function createFindWorkflowsUsingCredentialTool(
         findingCount: findings.length,
         summary,
         findings,
-      });
+      };
+  }
+}
+
+export function createFindWorkflowsUsingCredentialTool(
+  getClient: () => N8nClient,
+) {
+  return {
+    name: "n8n_find_workflows_using_credential",
+    label: "n8n: find workflows using credential",
+    description:
+      "Scan workflows and surface every node that references a given credential. Pass either `credentialId` (exact, preferred) or `credentialName` (case-insensitive substring fallback). Returns one finding per (workflowId, nodeName, credentialType) plus a per-workflow summary count. Read-only. Bounded-concurrency fan-out; per-workflow fetch errors land in `fetchErrors` instead of failing the whole scan. Pairs with n8n_run_audit and is the answer to 'I'm rotating <X> creds, where do I need to update?' before calling n8n_delete_credential.",
+    parameters: Schema,
+    execute: async (_toolCallId: string, rawParams: Record<string, unknown>) => {
+      return jsonToolResult(
+        await findWorkflowsUsingCredential(
+          getClient(),
+          rawParams as FindWorkflowsUsingCredentialOptions,
+        ),
+      );
     },
   };
 }
