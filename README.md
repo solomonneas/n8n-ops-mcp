@@ -214,32 +214,32 @@ Generate an API key in n8n under **Settings → API**, then set these env vars i
 
 ## CLI
 
-The same package ships a read-only operator CLI for shells, cron, and CI. It talks to the same n8n Public API as the MCP server and shares the same client core, so what the agent can read, you can read from a terminal. It exposes only the read/report tools - no create, save, archive, delete, cancel, retry, or trigger.
+The same package ships a read-only **control CLI**, `n8nctl` (alias `n8n-ops`), for shells, cron, and CI. It talks to the same n8n Public API as the MCP server and shares the same client core, so what the agent can read, you can read from a terminal. It exposes only the read/report tools - no create, save, archive, delete, cancel, retry, or trigger.
 
 ```bash
-# installed globally, the bin is `n8n-ops`:
-n8n-ops workflows list --active
-n8n-ops workflows get <id> --full
-n8n-ops workflows validate <id>
-n8n-ops executions list --status error --since 24
-n8n-ops executions search "ECONNREFUSED" --scope all
-n8n-ops executions stats --since 48
-n8n-ops webhooks list
-n8n-ops schedules list
-n8n-ops tags list
-n8n-ops credentials find-usage <credentialId>
-n8n-ops nodes find n8n-nodes-base.slack --contains
-n8n-ops nodes check-disabled
-n8n-ops audit run            # exit 1 if the backend is unreachable (cron-friendly)
-n8n-ops audit browser-bridge
-n8n-ops --json tags list     # raw JSON for piping
+# installed globally, the bin is `n8nctl` (alias `n8n-ops`):
+n8nctl workflows list --active
+n8nctl workflows get <id> --full
+n8nctl workflows validate <id>
+n8nctl executions list --status error --since 24
+n8nctl executions search "ECONNREFUSED" --scope all
+n8nctl executions stats --since 48
+n8nctl webhooks list
+n8nctl schedules list
+n8nctl tags list
+n8nctl credentials find-usage <credentialId>
+n8nctl nodes find n8n-nodes-base.slack --contains
+n8nctl nodes check-disabled
+n8nctl audit run            # exit 1 if the backend is unreachable (cron-friendly)
+n8nctl audit browser-bridge
+n8nctl --json tags list     # raw JSON for piping
 ```
 
-Run `n8n-ops help` for the full command and flag list. Configure with the same `N8N_BASE_URL` / `N8N_API_KEY` env vars as the MCP server (see the table above). Exit codes: `0` success, `1` runtime error (backend unreachable or a call failed), `2` usage error (unknown command/flag or bad value).
+Run `n8nctl help` for the full command and flag list. Configure with the same `N8N_BASE_URL` / `N8N_API_KEY` env vars as the MCP server (see the table above). Exit codes: `0` success, `1` runtime error (backend unreachable or a call failed), `2` usage error (unknown command/flag or bad value).
 
 ### Starting the MCP server
 
-`n8n-ops mcp` (or the back-compat `n8n-ops-mcp` bin) starts the stdio MCP server. If a launcher referenced the built file path `dist/mcp-server.js` directly, point it at `dist/mcp-bin.js` (or `dist/cli.js mcp`); launchers that use the `n8n-ops-mcp` bin name need no change.
+`n8nctl mcp` (or the back-compat `n8n-ops-mcp` bin) starts the stdio MCP server. If a launcher referenced the built file path `dist/mcp-server.js` directly, point it at `dist/mcp-bin.js` (or `dist/cli.js mcp`); launchers that use the `n8n-ops-mcp` bin name need no change.
 
 ### Claude Desktop
 
