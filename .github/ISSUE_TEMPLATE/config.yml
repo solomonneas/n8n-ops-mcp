@@ -4,7 +4,7 @@ contact_links:
     url: https://lidless.dev/n8n-ops-mcp
     about: Setup, the full tool list, and the security model. Start here before filing an issue.
   - name: Security report
-    url: https://github.com/lidless-labs/n8nctl/security/policy
+    url: https://github.com/lidless-labs/n8nctrl/security/policy
     about: Do not file security issues publicly. See SECURITY.md for how to report a vulnerability.
   - name: n8n itself
     url: https://github.com/n8n-io/n8n

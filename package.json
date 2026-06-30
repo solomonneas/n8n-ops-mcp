@@ -1,7 +1,7 @@
 {
   "name": "n8n-ops-mcp",
   "version": "0.14.0",
-  "description": "n8nctl operator control CLI for n8n workflow ops, with MCP and OpenClaw adapters for agents.",
+  "description": "n8nctrl operator control CLI for n8n workflow ops, with MCP and OpenClaw adapters for agents.",
   "type": "module",
   "license": "MIT",
   "author": "Solomon Neas <srneas@gmail.com>",
@@ -9,7 +9,7 @@
     "n8n",
     "mcp",
     "model-context-protocol",
-    "n8nctl",
+    "n8nctrl",
     "openclaw",
     "cli",
     "workflow",
@@ -18,16 +18,17 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/lidless-labs/n8nctl.git"
+    "url": "https://github.com/lidless-labs/n8nctrl.git"
   },
-  "homepage": "https://github.com/lidless-labs/n8nctl#readme",
+  "homepage": "https://github.com/lidless-labs/n8nctrl#readme",
   "bugs": {
-    "url": "https://github.com/lidless-labs/n8nctl/issues"
+    "url": "https://github.com/lidless-labs/n8nctrl/issues"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "bin": {
+    "n8nctrl": "dist/cli.js",
     "n8nctl": "dist/cli.js",
     "n8n-ops": "dist/cli.js",
     "n8n-ops-mcp": "dist/mcp-bin.js"

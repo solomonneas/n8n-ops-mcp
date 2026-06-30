@@ -43,10 +43,10 @@ export type Parsed =
   | { kind: "audit-run"; json: boolean }
   | { kind: "audit-browser-bridge"; json: boolean; platform?: string; action?: string };
 
-export const HELP = `n8nctl - read-only n8n control CLI (alias: n8n-ops) over the n8n Public API
+export const HELP = `n8nctrl - read-only n8n control CLI (alias: n8n-ops) over the n8n Public API
 
 Usage:
-  n8nctl <group> <command> [options]
+  n8nctrl <group> <command> [options]
 
 Commands:
   workflows list                 List workflows (--active, --tags, --name, --limit)

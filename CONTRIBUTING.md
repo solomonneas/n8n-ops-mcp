@@ -26,8 +26,8 @@ n8n-ops-mcp is an ops-focused [Model Context Protocol](https://modelcontextproto
 ## Local dev
 
 ```bash
-git clone https://github.com/lidless-labs/n8nctl.git
-cd n8nctl
+git clone https://github.com/lidless-labs/n8nctrl.git
+cd n8nctrl
 npm install
 npm run dev       # tsx on mcp-server.ts (MCP stdio)
 npm run typecheck
